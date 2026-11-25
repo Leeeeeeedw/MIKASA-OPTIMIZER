@@ -143,17 +143,19 @@ Cloudflare Anycast 受本地网络、时段和线路影响，软件只展示真�
 
 ## 许可证
 
-本项目采用 **MIKASA OPTIMIZER 非商业授权许可**：
+本项目采用 **PolyForm Noncommercial License 1.0.0**：
 
-- 允许个人非商业使用、学习和修改。
-- 禁止任何商业使用。
-- 转载源码或二进制必须保留作者 `guyue1337` 和仓库链接。
+- 允许任何非商业用途，包括使用、修改和分发。
+- 商业用途必须事先取得作者 `guyue1337` 的书面授权。
+- 转载源码或二进制必须保留许可证、作者署名和项目名称。
 - 发布文章、视频、直播、教程或截图演示时，必须显著注明：
   `MIKASA OPTIMIZER · 作者 guyue1337 · https://github.com/guyue1337/MIKASA-OPTIMIZER`
 - 禁止移除品牌、作者署名和许可证声明。
 
-完整条款见 [LICENSE](LICENSE)。这不是 OSI 认可的开源许可证，本项目属于
-source-available 项目。第三方依赖许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+完整条款见 [LICENSE](LICENSE)，署名与品牌说明见 [NOTICE.md](NOTICE.md)。
+PolyForm Noncommercial 是软件专用的标准化非商业许可证，但不属于 OSI 开源许可证，
+因此 GitHub 许可证识别可能显示为 `Other`。第三方依赖许可见
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 ## 作者
 

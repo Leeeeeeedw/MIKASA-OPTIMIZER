@@ -1,57 +1,75 @@
-MIKASA OPTIMIZER 非商业授权许可 v1.0
-Copyright (c) 2026 guyue1337 / MIKASA OPTIMIZER
-Repository: https://github.com/guyue1337/MIKASA-OPTIMIZER
+# PolyForm Noncommercial License 1.0.0
 
-本许可适用于 MIKASA OPTIMIZER（以下简称“本项目”）的源代码、安装包、
-便携版、文档、界面素材及其衍生作品。使用本项目即表示你已阅读并同意本许可。
+Required Notice: Copyright (c) 2026 guyue1337 / MIKASA OPTIMIZER
 
-一、允许的使用
+<https://polyformproject.org/licenses/noncommercial/1.0.0>
 
-1. 允许个人在非商业目的下下载、安装、运行、复制和修改本项目。
-2. 允许非商业转载、分享本项目的源代码或二进制文件，但必须完整保留本许可、
-   作者署名、项目名称和仓库链接，不得删除或遮挡软件内的品牌标识。
-3. 允许在非商业文章、视频、直播、教程或截图演示中展示本项目，但必须在
-   标题、简介、置顶评论或画面显著位置注明：
+## Acceptance
 
-   MIKASA OPTIMIZER · 作者 guyue1337
-   https://github.com/guyue1337/MIKASA-OPTIMIZER
+In order to get any license under these terms, you must agree to them as both strict obligations and conditions to all your licenses.
 
-4. 允许基于本项目进行非商业学习和二次开发；公开发布修改版时，必须注明
-   原项目与作者，并继续沿用本许可。
+## Copyright License
 
-二、禁止的行为
+The licensor grants you a copyright license for the software to do everything you might do with the software that would otherwise infringe the licensor's copyright in it for any permitted purpose.  However, you may only distribute the software according to [Distribution License](#distribution-license) and make changes or new works based on the software according to [Changes and New Works License](#changes-and-new-works-license).
 
-1. 禁止任何形式的商业使用，包括但不限于：销售、出租、付费下载、付费代测、
-   捆绑销售、商业广告变现、商业培训、企业内部商业部署，以及将本项目作为
-   付费服务或商业产品的一部分。
-2. 禁止移除、修改、隐藏或伪造作者署名、项目名称、品牌标识、许可证声明
-   和仓库链接。
-3. 禁止将本项目或其衍生作品冒充为他人原创，禁止使用本项目进行虚假宣传、
-   诈骗、侵权或其他违法活动。
-4. 打赏收款码的密文、解密密钥、原始图片及相关资源不属于本许可授权内容。
-   禁止提取、复用、传播、替换或将其用于任何收款、诈骗或其他用途。
-5. 禁止使用本项目从事违反当地法律法规、侵害他人权益或破坏网络安全的活动。
+## Distribution License
 
-三、商业授权
+The licensor grants you an additional copyright license to distribute copies of the software.  Your license to distribute covers distributing the software with changes and new works permitted by [Changes and New Works License](#changes-and-new-works-license).
 
-任何商业使用都必须事先取得作者 guyue1337 的书面授权。未取得书面授权的
-商业使用均视为侵权。
+## Notices
 
-四、许可终止
+You must ensure that anyone who gets a copy of any part of the software from you also gets a copy of these terms or the URL for them above, as well as copies of any plain-text lines beginning with `Required Notice:` that the licensor provided with the software.  For example:
 
-违反本许可任一条款，授权立即自动终止。终止后你必须停止使用、复制、分发
-和修改本项目，并删除已下载的源代码、安装包和衍生作品。
+> Required Notice: Copyright Yoyodyne, Inc. (http://example.com)
 
-五、免责声明
+## Changes and New Works License
 
-本项目按“现状”提供，不提供任何明示或默示的担保，包括但不限于适销性、
-特定用途适用性和不侵权担保。使用本项目所产生的任何直接或间接损失、数据
-丢失、网络问题或法律责任，均由使用者自行承担。作者不对第三方 IP、
-Cloudflare 服务、测速结果或用户所在网络环境作出保证。
+The licensor grants you an additional copyright license to make changes and new works based on the software for any permitted purpose.
 
-六、其他
+## Patent License
 
-本许可不是 OSI 认可的开源许可证，本项目属于 source-available（源码可见）
-项目，而不是 OSI 定义下的开源软件。本许可未授予的权利均由作者保留。
+The licensor grants you a patent license for the software that covers patent claims the licensor can license, or becomes able to license, that you would infringe by using the software.
 
-第三方依赖仍适用其各自的许可证，详见 THIRD_PARTY_NOTICES.md。
+## Noncommercial Purposes
+
+Any noncommercial purpose is a permitted purpose.
+
+## Personal Uses
+
+Personal use for research, experiment, and testing for the benefit of public knowledge, personal study, private entertainment, hobby projects, amateur pursuits, or religious observance, without any anticipated commercial application, is use for a permitted purpose.
+
+## Noncommercial Organizations
+
+Use by any charitable organization, educational institution, public research organization, public safety or health organization, environmental protection organization, or government institution is use for a permitted purpose regardless of the source of funding or obligations resulting from the funding.
+
+## Fair Use
+
+You may have "fair use" rights for the software under the law. These terms do not limit them.
+
+## No Other Rights
+
+These terms do not allow you to sublicense or transfer any of your licenses to anyone else, or prevent the licensor from granting licenses to anyone else.  These terms do not imply any other licenses.
+
+## Patent Defense
+
+If you make any written claim that the software infringes or contributes to infringement of any patent, your patent license for the software granted under these terms ends immediately. If your company makes such a claim, your patent license ends immediately for work on behalf of your company.
+
+## Violations
+
+The first time you are notified in writing that you have violated any of these terms, or done anything with the software not covered by your licenses, your licenses can nonetheless continue if you come into full compliance with these terms, and take practical steps to correct past violations, within 32 days of receiving notice.  Otherwise, all your licenses end immediately.
+
+## No Liability
+
+***As far as the law allows, the software comes as is, without any warranty or condition, and the licensor will not be liable to you for any damages arising out of these terms or the use or nature of the software, under any kind of legal claim.***
+
+## Definitions
+
+The **licensor** is the individual or entity offering these terms, and the **software** is the software the licensor makes available under these terms.
+
+**You** refers to the individual or entity agreeing to these terms.
+
+**Your company** is any legal entity, sole proprietorship, or other kind of organization that you work for, plus all organizations that have control over, are under the control of, or are under common control with that organization.  **Control** means ownership of substantially all the assets of an entity, or the power to direct its management and policies by vote, contract, or otherwise.  Control can be direct or indirect.
+
+**Your licenses** are all the licenses granted to you for the software under these terms.
+
+**Use** means anything you do with the software requiring one of your licenses.
