@@ -180,6 +180,16 @@ pub fn run() {
                 if let Some(icon) = app.default_window_icon() {
                     let _ = window.set_icon(icon.clone());
                 }
+                // 默认给总览页足够空间，同时按当前显示器可用尺寸收敛，避免高 DPI 下超出屏幕。
+                if let Ok(Some(monitor)) = window.current_monitor() {
+                    let scale = monitor.scale_factor().max(1.0);
+                    let logical_width = monitor.size().width as f64 / scale;
+                    let logical_height = monitor.size().height as f64 / scale;
+                    let width = 1360.0_f64.min(logical_width * 0.92).max(1280.0);
+                    let height = 860.0_f64.min(logical_height * 0.90).max(800.0);
+                    let _ = window.set_size(tauri::LogicalSize::new(width, height));
+                    let _ = window.center();
+                }
             }
             spawn_url_refresher(app.handle().clone());
             spawn_cm_refresher(app.handle().clone());

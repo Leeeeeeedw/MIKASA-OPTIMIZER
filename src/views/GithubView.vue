@@ -43,6 +43,7 @@ const uploadMode = ref<'all' | 'split'>('all')
 const uploadFormat = ref<'txt' | 'csv'>('txt')
 const minSpeed = ref(0)
 const maxLatency = ref(0)
+const perRegionLimit = ref(0)
 const includeCity = ref(true)
 const includeSpeed = ref(true)
 const includeLatency = ref(false)
@@ -59,6 +60,7 @@ function currentScanId() {
 const canOpenUpload = computed(() => repo.value.trim().length > 0 && status.value.configured && !busy.value)
 const normalizedMinSpeed = computed(() => Math.max(0, Number(minSpeed.value) || 0))
 const normalizedMaxLatency = computed(() => Math.max(0, Number(maxLatency.value) || 0))
+const normalizedPerRegion = computed(() => Math.max(0, Math.floor(Number(perRegionLimit.value) || 0)))
 
 function numberLabel(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, '')
@@ -68,17 +70,37 @@ const filterSummary = computed(() => {
   const parts: string[] = []
   if (normalizedMinSpeed.value > 0) parts.push(`速度 ≥ ${numberLabel(normalizedMinSpeed.value)} MB/s`)
   if (normalizedMaxLatency.value > 0) parts.push(`延迟 ≤ ${numberLabel(normalizedMaxLatency.value)} ms`)
+  if (normalizedPerRegion.value > 0) parts.push(`每地区速度前 ${normalizedPerRegion.value} 个`)
   return parts.length ? parts.join(' · ') : '无额外阈值'
 })
 
 const passedRows = computed(() => uploadRows.value.filter((row) => row.status === 'passed'))
 const eligibleRows = computed(() =>
-  passedRows.value.filter((row) => {
-    if (normalizedMinSpeed.value > 0 && row.speedMbS < normalizedMinSpeed.value) return false
-    if (normalizedMaxLatency.value > 0 && row.latency > normalizedMaxLatency.value) return false
-    return true
-  }),
+  limitPerRegion(
+    passedRows.value.filter((row) => {
+      if (normalizedMinSpeed.value > 0 && row.speedMbS < normalizedMinSpeed.value) return false
+      if (normalizedMaxLatency.value > 0 && row.latency > normalizedMaxLatency.value) return false
+      return true
+    }),
+  ),
 )
+
+function fastestFirst(a: ScanResult, b: ScanResult) {
+  return b.speedMbS - a.speedMbS || a.latency - b.latency || a.rank - b.rank
+}
+
+function limitPerRegion(list: ScanResult[]) {
+  const sorted = [...list].sort(fastestFirst)
+  const limit = normalizedPerRegion.value
+  if (!limit) return sorted
+  const grouped = new Map<string, ScanResult[]>()
+  for (const row of sorted) {
+    const group = grouped.get(row.region) || []
+    group.push(row)
+    grouped.set(row.region, group)
+  }
+  return [...grouped.values()].flatMap((group) => group.slice(0, limit)).sort(fastestFirst)
+}
 
 const regionCounts = computed<Record<string, number>>(() => {
   const counts: Record<string, number> = {}
@@ -128,6 +150,7 @@ const uploadOptions = computed<ExportOptions>(() => ({
   directory: '',
   format: uploadFormat.value,
   region: 'all',
+  perRegionLimit: normalizedPerRegion.value,
   minSpeedMbS: normalizedMinSpeed.value,
   maxLatencyMs: normalizedMaxLatency.value,
   includeSpeed: includeSpeed.value,
@@ -544,6 +567,18 @@ onMounted(load)
               </section>
 
               <section class="dialog-section">
+                <div class="section-title"><Layers :size="14" /><span>每地区上传数量</span><em>按真实下载速度从快到慢</em></div>
+                <div class="preset-row region-limit-row">
+                  <button
+                    v-for="preset in [5, 10, 0]"
+                    :key="`region-${preset}`"
+                    :class="{ active: normalizedPerRegion === preset }"
+                    @click="perRegionLimit = preset"
+                  >{{ preset === 0 ? '全部过测 IP' : `每地区前 ${preset} 个` }}</button>
+                </div>
+              </section>
+
+              <section class="dialog-section">
                 <div class="section-title"><SlidersHorizontal :size="14" /><span>备注字段</span><em>只影响 TXT，CSV 始终完整</em></div>
                 <div class="suffix-grid">
                   <button class="suffix-toggle" :class="{ active: includeCity }" @click="includeCity = !includeCity">
@@ -726,6 +761,7 @@ onMounted(load)
 .filter-block { padding: 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-solid); }
 .filter-title { display: block; margin-bottom: 8px; color: var(--text-2); font-size: 9px; }
 .preset-row { display: flex; flex-wrap: wrap; gap: 4px; }
+.region-limit-row button { flex: 1; height: 30px; font-size: 10px; }
 .preset-row button { min-width: 38px; height: 23px; padding: 0 7px; border: 1px solid var(--line); border-radius: 5px; background: var(--panel-2); color: var(--text-2); font-size: 8.5px; cursor: pointer; }
 .preset-row button:hover { border-color: rgba(109, 140, 255, 0.4); color: var(--text-0); }
 .preset-row button.active { border-color: rgba(109, 140, 255, 0.58); background: rgba(70, 99, 213, 0.2); color: #6f8ed8; }

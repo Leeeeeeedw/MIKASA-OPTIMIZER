@@ -5,7 +5,7 @@ Windows 10/11 x64 桌面端 Cloudflare 多地区 IP 优选工具。
 真实 TCP、HTTPS、colo、延迟与下载测速，支持七地区独立筛选、结果导出、
 GitHub 订阅上传、历史复测与浅色/夜间主题。
 
-> 当前版本：`v1.0.7`
+> 当前版本：`v1.0.8`
 > 项目性质：source-available，非商业授权，禁止商用。
 
 ## 界面预览
@@ -35,7 +35,9 @@ GitHub 订阅上传、历史复测与浅色/夜间主题。
 - 多种候选来源：本地 TXT/CSV、粘贴文本、URL 订阅、FOFA、Cloudflare 官方 IP 段、CM IP 库、GitHub Raw、Censys，以及多个社区公开源。
 - 统一候选池与来源合并，同一 `IP:端口` 自动去重。
 - 综合质量、低延迟、高下载速度三种排名。
-- 结果导出支持 TXT / CSV、单地区或全部地区、最低下载速度、最高延迟筛选，以及城市、速度、延迟、colo、来源备注字段自由组合。
+- 下载测速窗口最多取最快的 1024 个候选，并保留各地区基础配额，避免单个地区占满窗口。
+- 结果导出支持 TXT / CSV、单地区或全部地区、最低下载速度、最高延迟筛选，以及每地区最快前 5 / 前 10 / 全部过测 IP。
+- 结果导出同样支持城市、速度、延迟、colo、来源备注字段自由组合，导出预览按真实速度排序。
 - GitHub 上传支持同一套筛选；默认生成 ASCII 路径 `all.txt`、`JP/all.txt`、`US/all.txt` 等，方便脚本直接读取。
 - 上传完成后显示 raw 直链、jsDelivr CDN 直链、GitHub 页面和每个分区文件的复制按钮。
 - SQLite 本地历史、历史 IP 复测、数据库备份。
@@ -46,8 +48,8 @@ GitHub 订阅上传、历史复测与浅色/夜间主题。
 
 前往 [Releases](../../releases/latest) 下载：
 
-- `MIKASA_OPTIMIZER_1.0.7_x64_setup.exe`：NSIS 安装版，安装到当前用户目录，不需要管理员权限。
-- `MIKASA_OPTIMIZER_1.0.7_x64_portable.zip`：便携版，解压后双击 `三笠优选.exe`。
+- `MIKASA_OPTIMIZER_1.0.8_x64_setup.exe`：NSIS 安装版，安装到当前用户目录，不需要管理员权限。
+- `MIKASA_OPTIMIZER_1.0.8_x64_portable.zip`：便携版，解压后双击 `三笠优选.exe`。
 
 系统要求：
 

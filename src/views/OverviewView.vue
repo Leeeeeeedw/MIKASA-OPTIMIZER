@@ -337,15 +337,42 @@ const countOption = computed(() => {
   }
 })
 
-const logs = computed(() => {
-  if (state.logs.length > 0) return state.logs.slice(-6).reverse()
-  return [
-    {
-      scanId: '',
-      time: '—',
-      level: 'info',
-      message: '等待开始扫描。导入候选 IP 后，点击“开始优选”启动真实延迟与下载测速。',
+const logs = computed(() => state.logs.slice(-16).reverse())
+
+const flowSteps = [
+  { title: 'TCP 连通性', desc: '批量探测端口与握手' },
+  { title: 'HTTPS / colo', desc: '识别边缘节点与地区' },
+  { title: '延迟测试', desc: '多次采样取稳定值' },
+  { title: '下载测速', desc: '真实拉流验证带宽' },
+]
+
+const stageStats = computed(() => {
+  const scan = state.scan
+  const regionTotals = (state.dashboard.regionStats || []).reduce(
+    (totals, row) => {
+      totals.colo += row.coloOk || 0
+      totals.download += row.speedOk || 0
+      return totals
     },
+    { colo: 0, download: 0 },
+  )
+  // 重启后没有实时 scan 状态，不能把未知阶段显示成 0，避免误判为测速失败。
+  if (!scan) {
+    return [
+      { label: 'TCP 通过', value: '—' },
+      { label: 'HTTPS 通过', value: '—' },
+      { label: 'colo 命中', value: regionTotals.colo > 0 ? regionTotals.colo : '—' },
+      {
+        label: '下载通过',
+        value: regionTotals.download > 0 ? regionTotals.download : state.dashboard.usable || '—',
+      },
+    ]
+  }
+  return [
+    { label: 'TCP 通过', value: scan.tcpPassed ?? scan.tcpOk ?? 0 },
+    { label: 'HTTPS 通过', value: scan.httpsPassed ?? scan.httpsOk ?? 0 },
+    { label: 'colo 命中', value: scan.coloOk ?? regionTotals.colo },
+    { label: '下载通过', value: scan.downloadPassed ?? (regionTotals.download || state.dashboard.usable) },
   ]
 })
 
@@ -583,11 +610,32 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
             <button class="icon-btn" title="刷新状态" @click="refreshDashboard"><RefreshCw :size="13" /></button>
           </div>
         </div>
-        <div class="log-list">
-          <div v-for="(log, index) in logs" :key="index" class="log-row">
-            <span class="log-dot" :class="log.level"></span>
-            <span class="log-time mono">{{ log.time }}</span>
-            <span class="log-message">{{ log.message }}</span>
+        <div class="log-list" :class="{ empty: logs.length === 0 }">
+          <template v-if="logs.length">
+            <div v-for="(log, index) in logs" :key="index" class="log-row">
+              <span class="log-dot" :class="log.level"></span>
+              <span class="log-time mono">{{ log.time }}</span>
+              <span class="log-message">{{ log.message }}</span>
+            </div>
+          </template>
+          <div v-else class="log-empty">
+            <div class="log-empty-title">等待开始扫描 · 真实测试流程</div>
+            <div class="log-flow">
+              <div v-for="(step, index) in flowSteps" :key="step.title" class="log-flow-step">
+                <span class="flow-index">0{{ index + 1 }}</span>
+                <div class="flow-copy">
+                  <strong>{{ step.title }}</strong>
+                  <em>{{ step.desc }}</em>
+                </div>
+              </div>
+            </div>
+            <p class="log-empty-note">导入候选 IP 后点击“开始优选”，这里会实时显示各阶段日志。</p>
+          </div>
+        </div>
+        <div class="stage-strip">
+          <div v-for="stage in stageStats" :key="stage.label" class="stage-cell">
+            <span>{{ stage.label }}</span>
+            <strong>{{ stage.value }}</strong>
           </div>
         </div>
       </div>
@@ -1294,10 +1342,10 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
 
 .coverage-chips {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 3px 5px;
-  margin-top: 4px;
-  max-height: 66px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px 6px;
+  margin-top: 6px;
+  max-height: 134px;
   overflow-y: auto;
   scrollbar-width: thin;
 }
@@ -1305,15 +1353,15 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
 .coverage-chip {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   min-width: 0;
-  height: 20px;
-  padding: 0 5px;
+  height: 26px;
+  padding: 0 7px;
   border: 1px solid rgba(108, 133, 255, 0.1);
   border-radius: 5px;
   background: rgba(98, 124, 215, 0.06);
   color: #a8b6d6;
-  font-size: 9px;
+  font-size: 10.5px;
 }
 
 .coverage-name {
@@ -1327,7 +1375,8 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
 .coverage-chip em {
   font-style: normal;
   color: #57e39b;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
@@ -1369,13 +1418,13 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
 
 .summary-title {
   color: #e5ebff;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
 }
 
 .summary-sub {
   color: #7180a5;
-  font-size: 10px;
+  font-size: 10.5px;
   margin-top: 4px;
 }
 
@@ -1461,16 +1510,84 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
   border-top: 1px solid rgba(108, 133, 255, 0.1);
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(109, 140, 255, 0.28) transparent;
+}
+
+.log-list.empty {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   overflow: hidden;
+}
+
+.log-empty {
+  padding: 8px 10px 10px;
+}
+
+.log-empty-title {
+  color: #8ea2d6;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+}
+
+.log-flow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 8px;
+  margin-top: 8px;
+}
+
+.log-flow-step {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 9px;
+  border: 1px solid rgba(108, 133, 255, 0.12);
+  border-radius: 7px;
+  background: rgba(98, 124, 215, 0.05);
+}
+
+.flow-index {
+  color: rgba(122, 156, 255, 0.55);
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.flow-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.flow-copy strong {
+  color: #aebde3;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.flow-copy em {
+  color: #5f6e92;
+  font-size: 9px;
+  font-style: normal;
+}
+
+.log-empty-note {
+  margin: 9px 0 0;
+  color: #566488;
+  font-size: 9.5px;
 }
 
 .log-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 22px;
+  min-height: 23px;
   color: #8896b8;
-  font-size: 9.8px;
+  font-size: 10.2px;
 }
 
 .log-dot {
@@ -1494,6 +1611,40 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.stage-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(108, 133, 255, 0.1);
+}
+
+.stage-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  min-width: 0;
+  padding: 4px 7px;
+  border: 1px solid rgba(108, 133, 255, 0.1);
+  border-radius: 6px;
+  background: rgba(98, 124, 215, 0.06);
+}
+
+.stage-cell span {
+  color: #7483a8;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.stage-cell strong {
+  color: #a9c6ff;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .overview-footer {
@@ -1583,6 +1734,17 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
   .charts-grid > .chart-card:last-child { grid-column: auto; }
   .bottom-grid { grid-template-columns: 1fr; }
   .summary-card { min-height: 0; }
+}
+
+@media (max-width: 1320px) {
+  .param-note { display: none; }
+  .param-items { gap: 7px; }
+  .param-item select { min-width: 58px; }
+}
+
+@media (max-height: 820px) {
+  .coverage-chips { gap: 3px 5px; }
+  .coverage-chip { height: 24px; font-size: 10px; }
 }
 
 @media (max-width: 1080px) {

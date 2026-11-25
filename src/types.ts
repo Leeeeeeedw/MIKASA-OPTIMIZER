@@ -228,6 +228,7 @@ export interface ExportOptions {
   directory?: string
   format?: string
   region?: string
+  perRegionLimit?: number
   minSpeedMbS?: number
   maxLatencyMs?: number
   includeSpeed?: boolean

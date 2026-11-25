@@ -673,6 +673,22 @@ html[data-theme="light"] .overview-page .logs-tabs { color: #61708a !important; 
 html[data-theme="light"] .overview-page .logs-tabs .active { color: #334fc4 !important; }
 html[data-theme="light"] .overview-page .log-row { color: #53627c !important; }
 html[data-theme="light"] .overview-page .log-time { color: #8491a6 !important; }
+html[data-theme="light"] .overview-page .log-empty-title { color: #4058a8 !important; }
+html[data-theme="light"] .overview-page .log-flow-step {
+  border-color: rgba(58, 83, 140, 0.12) !important;
+  background: rgba(79, 111, 232, 0.05) !important;
+}
+html[data-theme="light"] .overview-page .flow-index { color: rgba(79, 111, 232, 0.5) !important; }
+html[data-theme="light"] .overview-page .flow-copy strong { color: #2c3b57 !important; }
+html[data-theme="light"] .overview-page .flow-copy em { color: #6d7b96 !important; }
+html[data-theme="light"] .overview-page .log-empty-note { color: #75839b !important; }
+html[data-theme="light"] .overview-page .stage-strip { border-top-color: rgba(58, 83, 140, 0.1); }
+html[data-theme="light"] .overview-page .stage-cell {
+  border-color: rgba(58, 83, 140, 0.12) !important;
+  background: rgba(79, 111, 232, 0.06) !important;
+}
+html[data-theme="light"] .overview-page .stage-cell span { color: #64748f !important; }
+html[data-theme="light"] .overview-page .stage-cell strong { color: #2f4fb8 !important; }
 html[data-theme="light"] .overview-page .summary-title { color: #1b2944 !important; }
 html[data-theme="light"] .overview-page .summary-sub,
 html[data-theme="light"] .overview-page .summary-progress-head { color: #61708a !important; }

@@ -26,6 +26,7 @@ const regionChoice = ref<string>('all')
 const outputDir = ref(state.settings.exportDir || '')
 const minSpeed = ref(0)
 const maxLatency = ref(0)
+const perRegionLimit = ref(0)
 const includeCity = ref(true)
 const includeSpeed = ref(true)
 const includeLatency = ref(false)
@@ -48,6 +49,7 @@ const selectedName = computed(() => {
 })
 const normalizedMinSpeed = computed(() => Math.max(0, Number(minSpeed.value) || 0))
 const normalizedMaxLatency = computed(() => Math.max(0, Number(maxLatency.value) || 0))
+const normalizedPerRegion = computed(() => Math.max(0, Math.floor(Number(perRegionLimit.value) || 0)))
 
 function numberLabel(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, '')
@@ -57,6 +59,7 @@ const filterSuffix = computed(() => {
   const parts: string[] = []
   if (normalizedMinSpeed.value > 0) parts.push(`${numberLabel(normalizedMinSpeed.value)}MBs以上`)
   if (normalizedMaxLatency.value > 0) parts.push(`${numberLabel(normalizedMaxLatency.value)}ms内`)
+  if (normalizedPerRegion.value > 0) parts.push(`每地区前${normalizedPerRegion.value}`)
   return parts.length ? `_${parts.join('_')}` : ''
 })
 
@@ -65,6 +68,7 @@ const filterSummary = computed(() => {
   const parts: string[] = []
   if (normalizedMinSpeed.value > 0) parts.push(`速度 ≥ ${numberLabel(normalizedMinSpeed.value)} MB/s`)
   if (normalizedMaxLatency.value > 0) parts.push(`延迟 ≤ ${numberLabel(normalizedMaxLatency.value)} ms`)
+  if (normalizedPerRegion.value > 0) parts.push(`每地区速度前 ${normalizedPerRegion.value} 个`)
   return parts.length ? parts.join(' · ') : '无额外阈值'
 })
 
@@ -78,13 +82,32 @@ function matchesRegion(row: ScanResult) {
   return row.region === regionChoice.value
 }
 const eligibleRows = computed(() =>
-  passedRows.value.filter((row) => {
-    if (!matchesRegion(row)) return false
-    if (normalizedMinSpeed.value > 0 && row.speedMbS < normalizedMinSpeed.value) return false
-    if (normalizedMaxLatency.value > 0 && row.latency > normalizedMaxLatency.value) return false
-    return true
-  }),
+  limitPerRegion(
+    passedRows.value.filter((row) => {
+      if (!matchesRegion(row)) return false
+      if (normalizedMinSpeed.value > 0 && row.speedMbS < normalizedMinSpeed.value) return false
+      if (normalizedMaxLatency.value > 0 && row.latency > normalizedMaxLatency.value) return false
+      return true
+    }),
+  ),
 )
+
+function fastestFirst(a: ScanResult, b: ScanResult) {
+  return b.speedMbS - a.speedMbS || a.latency - b.latency || a.rank - b.rank
+}
+
+function limitPerRegion(list: ScanResult[]) {
+  const sorted = [...list].sort(fastestFirst)
+  const limit = normalizedPerRegion.value
+  if (!limit) return sorted
+  const grouped = new Map<string, ScanResult[]>()
+  for (const row of sorted) {
+    const group = grouped.get(row.region) || []
+    group.push(row)
+    grouped.set(row.region, group)
+  }
+  return [...grouped.values()].flatMap((group) => group.slice(0, limit)).sort(fastestFirst)
+}
 
 function formatLine(row: ScanResult) {
   let line = `${row.ip}:${row.port}#三笠优选`
@@ -105,7 +128,7 @@ const fileNote = computed(() =>
 )
 
 watch(
-  [regionChoice, format, outputDir, minSpeed, maxLatency, includeCity, includeSpeed, includeLatency, includeColo, includeSource],
+  [regionChoice, format, outputDir, minSpeed, maxLatency, perRegionLimit, includeCity, includeSpeed, includeLatency, includeColo, includeSource],
   () => {
     outcome.value = null
   },
@@ -143,6 +166,7 @@ async function exportNow() {
       directory: outputDir.value || undefined,
       format: format.value,
       region: regionChoice.value,
+      perRegionLimit: normalizedPerRegion.value,
       minSpeedMbS: normalizedMinSpeed.value,
       maxLatencyMs: normalizedMaxLatency.value,
       includeSpeed: includeSpeed.value,
@@ -265,6 +289,21 @@ async function exportNow() {
 
         <div class="setting-block">
           <div class="block-label-row">
+            <label class="field-label"><Layers :size="12" />每地区导出数量</label>
+            <span>按真实下载速度从快到慢</span>
+          </div>
+          <div class="preset-row region-limit-row">
+            <button
+              v-for="preset in [5, 10, 0]"
+              :key="`region-${preset}`"
+              :class="{ active: normalizedPerRegion === preset }"
+              @click="perRegionLimit = preset"
+            >{{ preset === 0 ? '全部过测 IP' : `前 ${preset} 个` }}</button>
+          </div>
+        </div>
+
+        <div class="setting-block">
+          <div class="block-label-row">
             <label class="field-label"><SlidersHorizontal :size="12" />TXT 备注后缀</label>
             <span>按顺序拼接，CSV 不受影响</span>
           </div>
@@ -381,6 +420,7 @@ async function exportNow() {
 .block-label-row > span { color: var(--text-3); font-size: 8.5px; }
 .dir-picker { display: flex; gap: 7px; }
 .dir-picker input { flex: 1; height: 33px; padding: 0 10px; border: 1px solid var(--line); border-radius: 7px; outline: none; background: rgba(5, 10, 23, 0.7); color: var(--text-1); font-size: 10px; }
+.region-limit-row button { flex: 1; height: 30px; font-size: 10px; }
 .region-choice { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
 .region-choice button { position: relative; display: flex; align-items: center; gap: 7px; min-height: 44px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px; background: rgba(9, 17, 34, 0.55); color: var(--text-2); text-align: left; cursor: pointer; transition: border-color .15s, background .15s; }
 .region-choice button:hover { border-color: rgba(109, 140, 255, 0.34); background: rgba(35, 58, 118, 0.2); }

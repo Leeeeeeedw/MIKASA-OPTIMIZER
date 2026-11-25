@@ -522,29 +522,44 @@ pub async fn run_scan(
     // 注意：不要在这里把 p.tested 归零，否则任务数为 0 或下载很慢时界面会一直停在 0% / 上一阶段总数。
     if let Ok(mut p) = progress.lock() {
         p.phase = "download".to_string();
-        p.message = format!("正在执行真实下载测速（{} 个候选）", verified_all.len());
+        p.message = format!("正在准备真实下载测速窗口（{} 个候选）", verified_all.len());
         p.tested = p.total;
     }
     emit_progress(&app, &progress, &state);
+    const DOWNLOAD_TEST_LIMIT: usize = 1024;
+    let job_limit = DOWNLOAD_TEST_LIMIT.min(verified_all.len());
     let mut by_region: HashMap<String, Vec<usize>> = HashMap::new();
     for (idx, item) in verified_all.iter().enumerate() {
         by_region.entry(item.region.clone()).or_default().push(idx);
     }
-    let mut download_jobs: Vec<usize> = Vec::new();
+    let mut selected_flags = vec![false; verified_all.len()];
+    let mut download_jobs: Vec<usize> = Vec::with_capacity(job_limit);
+    // 每个地区先保留基础配额，避免某个候选特别多的地区吃光 1024 窗口。
+    let fair_share = (job_limit / (regions.len() + 2).max(1)).max(12);
+    let top = req.per_region_top.max(1);
+    let extra = if req.smart_supplement {
+        ((top + 1) / 2).max(8)
+    } else {
+        4
+    };
     for key in &regions {
         if let Some(indices) = by_region.get_mut(key) {
-            indices.sort_by(|a, b| verified_all[*a].latency.avg_ms.partial_cmp(&verified_all[*b].latency.avg_ms).unwrap_or(std::cmp::Ordering::Equal));
-            // 只对延迟最靠前的少量余量做下载复测：既能补齐配额，又不会把
-            // 几百个明显没有希望的低速节点全部跑满 10 秒，整体耗时显著下降。
-            let top = req.per_region_top.max(1);
-            let extra = if req.smart_supplement {
-                ((top + 1) / 2).max(8)
-            } else {
-                4
-            };
-            let slots = (top + extra).max(10);
+            indices.sort_by(|a, b| {
+                verified_all[*a]
+                    .latency
+                    .avg_ms
+                    .partial_cmp(&verified_all[*b].latency.avg_ms)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            let slots = (top + extra).max(10).min(fair_share);
             for idx in indices.iter().take(slots) {
-                download_jobs.push(*idx);
+                if download_jobs.len() >= job_limit {
+                    break;
+                }
+                if !selected_flags[*idx] {
+                    selected_flags[*idx] = true;
+                    download_jobs.push(*idx);
+                }
             }
         }
     }
@@ -563,8 +578,16 @@ pub async fn run_scan(
             .partial_cmp(&verified_all[*b].latency.avg_ms)
             .unwrap_or(std::cmp::Ordering::Equal)
     });
-    let global_slots = (req.per_region_top.max(1) * 2 + 20).clamp(30, 120);
-    download_jobs.extend(global_indices.into_iter().take(global_slots));
+    let global_slots = (top * 2 + 20).clamp(30, 120).min(fair_share);
+    for idx in global_indices.into_iter().take(global_slots) {
+        if download_jobs.len() >= job_limit {
+            break;
+        }
+        if !selected_flags[idx] {
+            selected_flags[idx] = true;
+            download_jobs.push(idx);
+        }
+    }
     let mut unknown_indices: Vec<usize> = verified_all
         .iter()
         .enumerate()
@@ -578,8 +601,49 @@ pub async fn run_scan(
             .partial_cmp(&verified_all[*b].latency.avg_ms)
             .unwrap_or(std::cmp::Ordering::Equal)
     });
-    download_jobs.extend(unknown_indices.into_iter().take(20));
+    for idx in unknown_indices.into_iter().take(20) {
+        if download_jobs.len() >= job_limit {
+            break;
+        }
+        if !selected_flags[idx] {
+            selected_flags[idx] = true;
+            download_jobs.push(idx);
+        }
+    }
+    // 剩余窗口按真实延迟从快到慢补足：即“最快的 1024 个候选”。
+    if download_jobs.len() < job_limit {
+        let mut fastest: Vec<usize> = (0..verified_all.len()).collect();
+        fastest.sort_by(|a, b| {
+            verified_all[*a]
+                .latency
+                .avg_ms
+                .partial_cmp(&verified_all[*b].latency.avg_ms)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        for idx in fastest {
+            if download_jobs.len() >= job_limit {
+                break;
+            }
+            if !selected_flags[idx] {
+                selected_flags[idx] = true;
+                download_jobs.push(idx);
+            }
+        }
+    }
     let total_downloads = download_jobs.len();
+    if let Ok(mut p) = progress.lock() {
+        p.message = format!("正在执行真实下载测速（{total_downloads} 个候选）");
+    }
+    emit_progress(&app, &progress, &state);
+    log(
+        &app,
+        &state,
+        &scan_id,
+        "info",
+        &format!(
+            "下载测速窗口：{total_downloads} 个候选（最多取最快的 {DOWNLOAD_TEST_LIMIT} 个，并保留各地区基础配额）"
+        ),
+    );
     // 下载测速会共享本机出口带宽：1 线程最接近客户端单连接速度，
     // 多线程只用于快速筛选，数值会因互抢带宽而偏低。
     let download_conc = req.download_threads.clamp(1, 32);

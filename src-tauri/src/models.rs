@@ -656,6 +656,8 @@ pub struct ExportOptions {
     pub directory: String,
     pub format: String,
     pub region: String,
+    /// 每个地区最多导出多少个通过节点；0 表示全部。
+    pub per_region_limit: usize,
     /// 0 表示不限制；单位 MB/s。
     pub min_speed_mb_s: f64,
     /// 0 表示不限制；单位 ms。
@@ -674,6 +676,7 @@ impl Default for ExportOptions {
             directory: String::new(),
             format: "txt".to_string(),
             region: "all".to_string(),
+            per_region_limit: 0,
             min_speed_mb_s: 0.0,
             max_latency_ms: 0.0,
             include_speed: true,

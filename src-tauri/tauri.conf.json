@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "三笠优选",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "identifier": "com.mikasa.optimizer",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -14,10 +14,10 @@
       {
         "label": "main",
         "title": "三笠优选 MIKASA OPTIMIZER",
-        "width": 1280,
-        "height": 800,
-        "minWidth": 1200,
-        "minHeight": 750,
+        "width": 1360,
+        "height": 860,
+        "minWidth": 1280,
+        "minHeight": 800,
         "decorations": false,
         "transparent": false,
         "backgroundColor": "#050814",

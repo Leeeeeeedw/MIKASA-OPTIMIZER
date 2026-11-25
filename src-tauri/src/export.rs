@@ -1,6 +1,7 @@
 use crate::db;
 use crate::models::*;
 use rusqlite::Connection;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug)]
@@ -133,6 +134,61 @@ fn filtered_rows<'a>(all_results: &'a [ScanResult], options: &ExportOptions) -> 
         .collect()
 }
 
+fn speed_first(a: &&ScanResult, b: &&ScanResult) -> std::cmp::Ordering {
+    b.speed_mb_s
+        .partial_cmp(&a.speed_mb_s)
+        .unwrap_or(std::cmp::Ordering::Equal)
+        .then_with(|| {
+            a.latency
+                .partial_cmp(&b.latency)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .then_with(|| a.rank.cmp(&b.rank))
+}
+
+fn region_order_key(region: &str) -> (usize, &str) {
+    let index = REGION_ORDER
+        .iter()
+        .position(|key| *key == region)
+        .unwrap_or(match region {
+            "unknown" => 98,
+            _ => 97,
+        });
+    (index, region)
+}
+
+/// 先按地区分组，再在每个地区内按真实下载速度降序取前 N。
+/// per_region_limit = 0 时保留全部，但仍按地区和速度稳定排序。
+fn selected_rows<'a>(all_results: &'a [ScanResult], options: &ExportOptions) -> Vec<&'a ScanResult> {
+    let rows = filtered_rows(all_results, options);
+    let limit = options.per_region_limit;
+    if limit == 0 {
+        let mut rows = rows;
+        rows.sort_by(|a, b| {
+            region_order_key(&a.region)
+                .cmp(&region_order_key(&b.region))
+                .then_with(|| speed_first(a, b))
+        });
+        return rows;
+    }
+
+    let mut grouped: BTreeMap<&str, Vec<&ScanResult>> = BTreeMap::new();
+    for row in rows {
+        grouped.entry(row.region.as_str()).or_default().push(row);
+    }
+    let mut selected = Vec::new();
+    for (_, mut group) in grouped {
+        group.sort_by(speed_first);
+        selected.extend(group.into_iter().take(limit));
+    }
+    selected.sort_by(|a, b| {
+        region_order_key(&a.region)
+            .cmp(&region_order_key(&b.region))
+            .then_with(|| speed_first(a, b))
+    });
+    selected
+}
+
 fn filter_file_suffix(options: &ExportOptions) -> String {
     let min_speed = if options.min_speed_mb_s.is_finite() {
         options.min_speed_mb_s.max(0.0)
@@ -150,6 +206,9 @@ fn filter_file_suffix(options: &ExportOptions) -> String {
     }
     if max_latency > 0.0 {
         parts.push(format!("{}ms内", number_label(max_latency)));
+    }
+    if options.per_region_limit > 0 {
+        parts.push(format!("每地区前{}", options.per_region_limit));
     }
     if parts.is_empty() {
         String::new()
@@ -179,7 +238,7 @@ pub fn build_export_files(conn: &Connection, options: &ExportOptions) -> Result<
     let ext = if csv { "csv" } else { "txt" };
     let region = options.region.trim();
     let export_all = region.is_empty() || region.eq_ignore_ascii_case("all");
-    let rows = filtered_rows(&all_results, options);
+    let rows = selected_rows(&all_results, options);
     if rows.is_empty() {
         let region_label = if export_all { "全部地区" } else { region_name(region) };
         let min_speed = options.min_speed_mb_s.max(0.0);
@@ -568,6 +627,38 @@ mod tests {
         };
         let error = build_github_files(&conn, &strict, false).unwrap_err();
         assert!(error.contains("没有符合条件"));
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn export_limits_each_region_to_fastest_nodes() {
+        let (conn, path) = temp_db();
+        seed(&conn);
+        for (ip, speed) in [
+            ("198.51.100.21", 9.0_f64),
+            ("198.51.100.22", 30.0_f64),
+            ("198.51.100.23", 1.0_f64),
+        ] {
+            let mut row = sample_result("hk");
+            row.ip = ip.into();
+            row.speed_mb_s = speed;
+            row.speed_mbps = speed * 8.0;
+            db::insert_result(&conn, &row).unwrap();
+        }
+        let files = build_export_files(
+            &conn,
+            &ExportOptions {
+                scan_id: "scan-test".into(),
+                per_region_limit: 2,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(files[0].name, "全部地区_每地区前2.txt");
+        assert!(files[0].content.contains("198.51.100.22:443"));
+        assert!(files[0].content.contains("198.51.100.10:443"));
+        assert!(!files[0].content.contains("198.51.100.21:443"));
+        assert!(!files[0].content.contains("198.51.100.23:443"));
         let _ = std::fs::remove_file(path);
     }
 
