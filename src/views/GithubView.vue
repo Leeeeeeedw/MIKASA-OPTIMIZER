@@ -21,7 +21,7 @@ import {
   X,
 } from '@lucide/vue'
 import { api, isTauri } from '../api'
-import { state } from '../store'
+import { state, refreshDashboard } from '../store'
 import type { ExportOptions, GithubStatus, GithubUploadOutcome, ScanResult } from '../types'
 
 const message = useMessage()
@@ -87,6 +87,16 @@ const regionCounts = computed<Record<string, number>>(() => {
   return counts
 })
 
+const extraRegionCounts = computed(() => {
+  let global = 0
+  let unknown = 0
+  for (const row of eligibleRows.value) {
+    if (row.region === 'unknown') unknown += 1
+    else if (!state.regions.some((region) => region.key === row.region)) global += 1
+  }
+  return { global, unknown }
+})
+
 const expectedFiles = computed(() => {
   if (!eligibleRows.value.length) return []
   const ext = uploadFormat.value
@@ -94,6 +104,8 @@ const expectedFiles = computed(() => {
     const files = state.regions
       .filter((region) => (regionCounts.value[region.key] || 0) > 0)
       .map((region) => `${region.key.toUpperCase()}/all.${ext}`)
+    if (extraRegionCounts.value.global > 0) files.push(`GLOBAL/all.${ext}`)
+    if (extraRegionCounts.value.unknown > 0) files.push(`UNKNOWN/all.${ext}`)
     return [...files, `all.${ext}`]
   }
   return [`all.${ext}`]
@@ -190,11 +202,13 @@ async function openUploadedFile(file: string, kind: 'raw' | 'blob') {
 
 async function load() {
   try {
+    await refreshDashboard()
     status.value = await api.githubStatus()
     repo.value = status.value.repo || ''
     branch.value = status.value.branch || 'main'
     remoteDir.value = status.value.remoteDir || 'mikasa-results'
     history.value = await api.getGithubHistory()
+    await loadRowsForPreview()
   } catch (error) {
     message.error(String(error))
   }
@@ -288,9 +302,13 @@ async function openUploadDialog() {
     message.warning('请先保存 GitHub Token')
     return
   }
+  await refreshDashboard()
   uploadOpen.value = true
   if (!check.value) void checkRepo()
   await loadRowsForPreview()
+  if (!eligibleRows.value.length) {
+    message.warning('当前没有完整通过并符合筛选条件的节点，请先完成一轮优选')
+  }
 }
 
 function closeUpload() {
@@ -398,10 +416,12 @@ onMounted(load)
           <div><span>目标仓库</span><strong>{{ repo || '尚未填写仓库地址' }}</strong></div>
           <div><span>分支 / 目录</span><strong>{{ branch }} / {{ remoteDir }}</strong></div>
           <div><span>结果来源</span><strong>{{ currentScanId() || '最新扫描结果' }}</strong></div>
+          <div><span>可上传节点</span><strong>{{ loadingRows ? '读取中…' : `${eligibleRows.length} 个完整通过节点` }}</strong></div>
         </div>
         <div class="path-preview">
           <div class="path-row"><span class="path-key">合并</span><code>{{ displayPath(`all.${uploadFormat}`) }}</code></div>
           <div class="path-row"><span class="path-key">分地区</span><code>{{ displayPath('JP/all.txt') }}</code></div>
+          <div class="path-row"><span class="path-key">其他地区</span><code>{{ displayPath('GLOBAL/all.txt') }}</code></div>
         </div>
         <p class="hint">
           GitHub 上传统一使用英文路径，避免中文文件名变成很长的 URL 编码。点击「开始上传」会先弹出筛选窗口，按速度、延迟和备注字段生成订阅文件。

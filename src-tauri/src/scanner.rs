@@ -438,7 +438,7 @@ pub async fn run_scan(
                     &state,
                     &scan_id,
                     "warn",
-                    &format!("{}:{} colo {} 不在七地区映射内，已跳过", candidate.ip, candidate.port, trace.colo),
+                    &format!("{}:{} colo {} 无法识别国家/地区，已跳过", candidate.ip, candidate.port, trace.colo),
                 );
             }
         } else {
@@ -534,8 +534,15 @@ pub async fn run_scan(
     for key in &regions {
         if let Some(indices) = by_region.get_mut(key) {
             indices.sort_by(|a, b| verified_all[*a].latency.avg_ms.partial_cmp(&verified_all[*b].latency.avg_ms).unwrap_or(std::cmp::Ordering::Equal));
-            let surplus = if req.smart_supplement { 2 } else { 1 };
-            let slots = (req.per_region_top.max(1) * surplus + 6).max(10);
+            // 只对延迟最靠前的少量余量做下载复测：既能补齐配额，又不会把
+            // 几百个明显没有希望的低速节点全部跑满 10 秒，整体耗时显著下降。
+            let top = req.per_region_top.max(1);
+            let extra = if req.smart_supplement {
+                ((top + 1) / 2).max(8)
+            } else {
+                4
+            };
+            let slots = (top + extra).max(10);
             for idx in indices.iter().take(slots) {
                 download_jobs.push(*idx);
             }
@@ -556,7 +563,7 @@ pub async fn run_scan(
             .partial_cmp(&verified_all[*b].latency.avg_ms)
             .unwrap_or(std::cmp::Ordering::Equal)
     });
-    let global_slots = (req.per_region_top.max(1) * 4 + 20).clamp(30, 240);
+    let global_slots = (req.per_region_top.max(1) * 2 + 20).clamp(30, 120);
     download_jobs.extend(global_indices.into_iter().take(global_slots));
     let mut unknown_indices: Vec<usize> = verified_all
         .iter()
@@ -571,7 +578,7 @@ pub async fn run_scan(
             .partial_cmp(&verified_all[*b].latency.avg_ms)
             .unwrap_or(std::cmp::Ordering::Equal)
     });
-    download_jobs.extend(unknown_indices.into_iter().take(30));
+    download_jobs.extend(unknown_indices.into_iter().take(20));
     let total_downloads = download_jobs.len();
     // 下载测速会共享本机出口带宽：1 线程最接近客户端单连接速度，
     // 多线程只用于快速筛选，数值会因互抢带宽而偏低。

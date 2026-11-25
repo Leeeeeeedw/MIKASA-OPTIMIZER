@@ -546,21 +546,25 @@ pub async fn fetch_url_source(state: State<'_, AppState>, id: i64) -> Result<Imp
         if seeds.is_empty() {
             return Err("链接内容中没有有效 IP".to_string());
         }
+        let fetched = seeds.len();
         let mut conn = db_guard(&state)?;
-        db::insert_candidates(&mut conn, seeds)
+        db::insert_candidates(&mut conn, seeds).map(|result| (result, fetched))
     }
     .await;
     if let Ok(conn) = state.db.lock() {
         match &result {
-            Ok(r) => {
+            Ok((r, fetched)) => {
+                let duplicates = fetched.saturating_sub(r.added + r.updated);
+                let _ = db::record_source_import(&conn, "url", *fetched, r.added, duplicates, 0, "正常", "");
                 let _ = db::update_url_source_status(&conn, id, r.added + r.updated, "成功");
             }
             Err(e) => {
+                let _ = db::record_source_import(&conn, "url", 0, 0, 0, 0, "更新失败", e);
                 let _ = db::update_url_source_status(&conn, id, 0, &format!("失败: {e}"));
             }
         }
     }
-    result
+    result.map(|(r, _)| r)
 }
 
 #[tauri::command]

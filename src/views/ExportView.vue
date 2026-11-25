@@ -40,7 +40,12 @@ const speedPresets = [0, 1, 3, 5, 10]
 const latencyPresets = [0, 300, 500, 800, 1000]
 
 const selectedRegion = computed(() => state.regions.find((region) => region.key === regionChoice.value))
-const selectedName = computed(() => (regionChoice.value === 'all' ? '全部地区' : selectedRegion.value?.name || '全部地区'))
+const selectedName = computed(() => {
+  if (regionChoice.value === 'all') return '全部地区'
+  if (regionChoice.value === 'global') return '全球其他地区'
+  if (regionChoice.value === 'unknown') return '未知地区'
+  return selectedRegion.value?.name || '全部地区'
+})
 const normalizedMinSpeed = computed(() => Math.max(0, Number(minSpeed.value) || 0))
 const normalizedMaxLatency = computed(() => Math.max(0, Number(maxLatency.value) || 0))
 
@@ -64,9 +69,17 @@ const filterSummary = computed(() => {
 })
 
 const passedRows = computed(() => rows.value.filter((row) => row.status === 'passed'))
+function matchesRegion(row: ScanResult) {
+  if (regionChoice.value === 'all') return true
+  if (regionChoice.value === 'global') {
+    return row.region !== 'unknown' && !state.regions.some((region) => region.key === row.region)
+  }
+  if (regionChoice.value === 'unknown') return row.region === 'unknown'
+  return row.region === regionChoice.value
+}
 const eligibleRows = computed(() =>
   passedRows.value.filter((row) => {
-    if (regionChoice.value !== 'all' && row.region !== regionChoice.value) return false
+    if (!matchesRegion(row)) return false
     if (normalizedMinSpeed.value > 0 && row.speedMbS < normalizedMinSpeed.value) return false
     if (normalizedMaxLatency.value > 0 && row.latency > normalizedMaxLatency.value) return false
     return true
@@ -83,7 +96,8 @@ function formatLine(row: ScanResult) {
   return line
 }
 
-const previewLines = computed(() => eligibleRows.value.slice(0, 5).map(formatLine))
+const previewRows = computed(() => eligibleRows.value.slice(0, 6))
+const previewLines = computed(() => previewRows.value.map(formatLine))
 const fileNote = computed(() =>
   eligibleRows.value.length
     ? `当前筛选后 ${eligibleRows.value.length} 个完整通过节点 · ${filterSummary.value}`
@@ -189,6 +203,16 @@ async function exportNow() {
               <span><strong>{{ region.name }}</strong><em>仅导出该地区</em></span>
               <Check v-if="regionChoice === region.key" :size="13" class="choice-check" />
             </button>
+            <button :class="{ active: regionChoice === 'global' }" @click="regionChoice = 'global'">
+              <RegionFlag code="global" :width="16" />
+              <span><strong>全球其他</strong><em>非七地区达标节点</em></span>
+              <Check v-if="regionChoice === 'global'" :size="13" class="choice-check" />
+            </button>
+            <button :class="{ active: regionChoice === 'unknown' }" @click="regionChoice = 'unknown'">
+              <RegionFlag code="unknown" :width="16" />
+              <span><strong>未知地区</strong><em>colo 未识别的节点</em></span>
+              <Check v-if="regionChoice === 'unknown'" :size="13" class="choice-check" />
+            </button>
           </div>
         </div>
 
@@ -271,7 +295,7 @@ async function exportNow() {
 
         <div class="setting-block preview-format-block">
           <label class="field-label">行格式预览</label>
-          <code class="format-code">{{ previewLines[0] || '104.16.123.45:443#三笠优选 | 香港 | 下载 18.35MB/s' }}</code>
+          <code class="format-code">{{ previewLines[0] || '等待真实扫描结果…' }}</code>
         </div>
 
         <button class="btn-primary export-button" :disabled="busy" @click="exportNow">
@@ -296,7 +320,18 @@ async function exportNow() {
 
         <div class="preview-head">
           <span>内容预览</span>
-          <em>{{ eligibleRows.length > 5 ? `显示前 5 条 / 共 ${eligibleRows.length} 条` : `共 ${eligibleRows.length} 条` }}</em>
+          <em>{{ eligibleRows.length > 6 ? `显示前 6 条 / 共 ${eligibleRows.length} 条` : `共 ${eligibleRows.length} 条` }}</em>
+        </div>
+        <div v-if="previewRows.length" class="preview-table">
+          <div class="preview-row preview-head-row">
+            <span>IP:端口</span><span>国家 / 城市</span><span>延迟</span><span>下载</span>
+          </div>
+          <div v-for="row in previewRows" :key="row.id" class="preview-row">
+            <span class="preview-ip">{{ row.ip }}:{{ row.port }}</span>
+            <span class="preview-region">{{ row.regionName }}</span>
+            <span class="preview-latency">{{ row.latency.toFixed(0) }} ms</span>
+            <span class="preview-speed">{{ row.speedMbS.toFixed(2) }} MB/s</span>
+          </div>
         </div>
         <pre v-if="previewLines.length" class="preview-code">{{ previewLines.join('\n') }}</pre>
         <div v-else class="preview-empty">
@@ -399,6 +434,15 @@ async function exportNow() {
 .file-check { color: #56d591; opacity: 0.8; }
 .preview-head { display: flex; align-items: center; justify-content: space-between; margin: 12px 0 6px; color: var(--text-2); font-size: 9.5px; }
 .preview-head em { color: var(--text-3); font-size: 8.5px; font-style: normal; }
+.preview-table { margin-bottom: 8px; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: rgba(2, 6, 15, 0.42); }
+.preview-row { display: grid; grid-template-columns: minmax(118px, 1.25fr) minmax(92px, 1fr) 58px 76px; align-items: center; min-height: 25px; padding: 0 8px; border-bottom: 1px solid rgba(108, 133, 255, 0.08); color: var(--text-2); font-size: 8.5px; }
+.preview-row:last-child { border-bottom: 0; }
+.preview-head-row { min-height: 22px; background: rgba(84, 112, 203, 0.08); color: var(--text-3); font-size: 8px; }
+.preview-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.preview-ip { color: #aec8ff; font-family: var(--mono); }
+.preview-region { color: var(--text-1); }
+.preview-latency { color: #73c9f0; }
+.preview-speed { color: #65d89d; font-weight: 600; }
 .preview-code { margin: 0; padding: 11px; min-height: 92px; max-height: 150px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: rgba(2, 6, 15, 0.62); color: #8fa9db; font-family: var(--mono); font-size: 9px; line-height: 1.8; white-space: pre-wrap; word-break: break-all; }
 .preview-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 118px; padding: 12px; border: 1px dashed var(--line-strong); border-radius: 8px; color: var(--text-3); text-align: center; }
 .preview-empty svg { opacity: .5; }

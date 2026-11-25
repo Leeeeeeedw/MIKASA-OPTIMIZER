@@ -29,7 +29,7 @@ import {
   isAllSelected,
   refreshDashboard,
 } from '../store'
-import type { RegionInfo } from '../types'
+import type { RegionInfo, RegionStats } from '../types'
 import { api, isTauri } from '../api'
 
 const message = useMessage()
@@ -52,6 +52,7 @@ onMounted(loadSourceLabel)
 watch(() => state.settings.speedSource, loadSourceLabel)
 
 const displayRegions = computed<RegionInfo[]>(() => state.regions)
+const preferredKeys = computed(() => new Set(state.regions.map((region) => region.key)))
 const selectedCount = computed(() => state.selectedRegions.length)
 const allSelected = computed(() => isAllSelected())
 const busy = computed(() => state.scan?.status === 'running')
@@ -61,44 +62,115 @@ const scanActive = computed(
 const scanCompleted = computed(() => state.scan?.status === 'completed')
 const hasResults = computed(() => state.dashboard.usable > 0)
 
-const statCards = computed(() => [
-  {
-    label: '测试 IP 数量',
-    value: state.dashboard.totalTested.toLocaleString(),
-    suffix: '个',
-    delta: state.dashboard.totalCandidates > 0 ? `候选池 ${state.dashboard.totalCandidates.toLocaleString()}` : '等待导入',
-    tone: 'blue',
-    icon: Rocket,
-    spark: [28, 35, 32, 44, 41, 55, 49, 64, 60, 73],
-  },
-  {
-    label: '平均延迟',
-    value: state.dashboard.avgLatency > 0 ? state.dashboard.avgLatency.toFixed(0) : '—',
-    suffix: 'ms',
+/**
+ * 非首选地区（以及未知地区）只要本轮有达标结果，也必须出现在总览里。
+ * 后端 dashboard 会按真实 colo 国家返回这些地区；实时扫描结束瞬间则用 global 汇总兜底。
+ */
+const extraRegionStats = computed<RegionStats[]>(() => {
+  const preferred = preferredKeys.value
+  const fromDashboard = (state.dashboard.regionStats || [])
+    .filter((row) => !preferred.has(row.key) && Number(row.finalCount || 0) > 0)
+    .sort((a, b) => b.finalCount - a.finalCount)
+  if (fromDashboard.length) return fromDashboard
+  return (state.scan?.regionStats || [])
+    .filter((row) => !preferred.has(row.key) && Number(row.finalCount || 0) > 0)
+    .sort((a, b) => b.finalCount - a.finalCount)
+})
+
+const chartStats = computed(() => {
+  const base = displayRegions.value.map((region) => regionStatsFor(region.key))
+  const extras = extraRegionStats.value
+  if (!extras.length) return base
+  const extraKnown = extras.filter((row) => row.key !== 'unknown')
+  const unknown = extras.find((row) => row.key === 'unknown')
+  const result = [...base]
+  if (extraKnown.length) {
+    const total = extraKnown.reduce((sum, row) => sum + row.finalCount, 0)
+    const latency = total ? extraKnown.reduce((sum, row) => sum + row.avgLatency * row.finalCount, 0) / total : 0
+    const speed = total ? extraKnown.reduce((sum, row) => sum + row.avgSpeed * row.finalCount, 0) / total : 0
+    result.push({
+      key: 'global',
+      name: '全球其他',
+      flag: '🌐',
+      candidates: extraKnown.reduce((sum, row) => sum + row.candidates, 0),
+      tcpOk: 0,
+      httpsOk: 0,
+      coloOk: 0,
+      latencyOk: 0,
+      downloadOk: total,
+      speedOk: total,
+      finalCount: total,
+      avgLatency: latency,
+      avgSpeed: speed,
+      latencyEliminated: 0,
+    })
+  }
+  if (unknown) result.push(unknown)
+  return result
+})
+
+const chartShortNames: Record<string, string> = {
+  香港: '港',
+  台湾: '台',
+  日本: '日',
+  新加坡: '新',
+  韩国: '韩',
+  法国: '法',
+  美国: '美',
+  全球其他: '其他',
+  全球其他地区: '其他',
+  未知地区: '未知',
+}
+
+function chartShortName(name: string) {
+  return chartShortNames[name] || name.slice(0, 2)
+}
+
+// 平均延迟 / 下载图表只画本轮真正有结果的地区；没有结果的地区显示 0
+// 会在折线或柱状图里造成误导。IP 数量图表仍保留全部地区，方便看出缺口。
+const dataChartStats = computed(() => chartStats.value.filter((row) => row.finalCount > 0))
+
+const statCards = computed(() => {
+  const stats = chartStats.value
+  return [
+    {
+      label: '测试 IP 数量',
+      value: state.dashboard.totalTested.toLocaleString(),
+      suffix: '个',
+      delta: state.dashboard.totalCandidates > 0 ? `候选池 ${state.dashboard.totalCandidates.toLocaleString()}` : '等待导入',
+      tone: 'blue',
+      icon: Rocket,
+      spark: stats.map((row) => row.candidates || row.finalCount),
+    },
+    {
+      label: '平均延迟',
+      value: state.dashboard.avgLatency > 0 ? state.dashboard.avgLatency.toFixed(0) : '—',
+      suffix: 'ms',
       delta: state.dashboard.avgLatency > 0 ? '最近扫描均值' : '尚无测速',
-    tone: 'cyan',
-    icon: Zap,
-    spark: [61, 58, 48, 54, 43, 46, 37, 39, 31, 27],
-  },
-  {
-    label: '平均下载速度',
-    value: state.dashboard.avgSpeed > 0 ? state.dashboard.avgSpeed.toFixed(2) : '—',
-    suffix: 'MB/s',
-    delta: state.dashboard.avgSpeed > 0 ? `${(state.dashboard.avgSpeed * 8).toFixed(1)} Mbps` : '尚无测速',
-    tone: 'violet',
-    icon: Activity,
-    spark: [21, 28, 26, 34, 39, 36, 48, 52, 51, 67],
-  },
-  {
-    label: '可用 IP 数量',
-    value: state.dashboard.usable.toLocaleString(),
-    suffix: '个',
-    delta: state.dashboard.usable > 0 ? '完整测速通过' : '等待优选',
-    tone: 'green',
-    icon: CircleCheck,
-    spark: [14, 18, 17, 25, 23, 29, 28, 34, 36, 44],
-  },
-])
+      tone: 'cyan',
+      icon: Zap,
+      spark: stats.map((row) => row.avgLatency),
+    },
+    {
+      label: '平均下载速度',
+      value: state.dashboard.avgSpeed > 0 ? state.dashboard.avgSpeed.toFixed(2) : '—',
+      suffix: 'MB/s',
+      delta: state.dashboard.avgSpeed > 0 ? `${(state.dashboard.avgSpeed * 8).toFixed(1)} Mbps` : '尚无测速',
+      tone: 'violet',
+      icon: Activity,
+      spark: stats.map((row) => row.avgSpeed),
+    },
+    {
+      label: '可用 IP 数量',
+      value: state.dashboard.usable.toLocaleString(),
+      suffix: '个',
+      delta: state.dashboard.usable > 0 ? '完整测速通过' : '等待优选',
+      tone: 'green',
+      icon: CircleCheck,
+      spark: stats.map((row) => row.finalCount),
+    },
+  ]
+})
 
 function sparkPoints(values: number[]) {
   const max = Math.max(...values)
@@ -113,9 +185,8 @@ function sparkPoints(values: number[]) {
 }
 
 const latencyOption = computed(() => {
-  const keys = state.regions.map((r) => r.key)
-  const labels = state.regions.map((r) => r.name)
-  const values = keys.map((key) => regionStatsFor(key).avgLatency)
+  const labels = dataChartStats.value.map((r) => r.name)
+  const values = dataChartStats.value.map((r) => r.avgLatency)
   return {
     animationDuration: 500,
     grid: { left: 38, right: 12, top: 20, bottom: 28 },
@@ -132,7 +203,7 @@ const latencyOption = computed(() => {
       data: labels,
       axisLine: { lineStyle: { color: 'rgba(112, 139, 255, 0.15)' } },
       axisTick: { show: false },
-      axisLabel: { color: '#6f7c9e', fontSize: 10 },
+      axisLabel: { color: '#6f7c9e', fontSize: 9, interval: 0, formatter: chartShortName },
     },
     yAxis: {
       type: 'value',
@@ -161,7 +232,7 @@ const latencyOption = computed(() => {
                           : '#5d8cff',
           },
         })),
-        barWidth: 22,
+        barMaxWidth: 12,
         itemStyle: { borderRadius: [5, 5, 0, 0] },
       },
     ],
@@ -169,8 +240,8 @@ const latencyOption = computed(() => {
 })
 
 const speedOption = computed(() => {
-  const labels = state.regions.map((r) => r.name)
-  const values = state.regions.map((r) => regionStatsFor(r.key).avgSpeed)
+  const labels = dataChartStats.value.map((r) => r.name)
+  const values = dataChartStats.value.map((r) => r.avgSpeed)
   return {
     animationDuration: 500,
     grid: { left: 38, right: 12, top: 20, bottom: 28 },
@@ -187,7 +258,7 @@ const speedOption = computed(() => {
       data: labels,
       axisLine: { lineStyle: { color: 'rgba(112, 139, 255, 0.15)' } },
       axisTick: { show: false },
-      axisLabel: { color: '#6f7c9e', fontSize: 10 },
+      axisLabel: { color: '#6f7c9e', fontSize: 9, interval: 0, formatter: chartShortName },
     },
     yAxis: {
       type: 'value',
@@ -219,8 +290,10 @@ const speedOption = computed(() => {
 })
 
 const countOption = computed(() => {
-  const labels = state.regions.map((r) => r.name)
-  const values = state.regions.map((r) => regionStatsFor(r.key).candidates)
+  const labels = chartStats.value.map((r) => r.name)
+  // 图表统计的是本轮正式保留的 IP，而不是候选池里的原始条数；
+  // 候选池数量已在“测试 IP 数量”卡片单独展示，混用会让地区数量看起来失真。
+  const values = chartStats.value.map((r) => r.finalCount)
   return {
     animationDuration: 500,
     grid: { left: 34, right: 8, top: 16, bottom: 24 },
@@ -229,14 +302,14 @@ const countOption = computed(() => {
       backgroundColor: 'rgba(10, 17, 35, 0.96)',
       borderColor: 'rgba(112, 139, 255, 0.3)',
       textStyle: { color: '#e8edff', fontSize: 11 },
-      formatter: (params: Array<{ name: string; value: number }>) => `${params[0].name}<br/>候选 IP：${params[0].value} 个`,
+      formatter: (params: Array<{ name: string; value: number }>) => `${params[0].name}<br/>正式保留：${params[0].value} 个`,
     },
     xAxis: {
       type: 'category',
       data: labels,
       axisLine: { lineStyle: { color: 'rgba(112, 139, 255, 0.15)' } },
       axisTick: { show: false },
-      axisLabel: { color: '#6f7c9e', fontSize: 9, interval: 0 },
+      axisLabel: { color: '#6f7c9e', fontSize: 9, interval: 0, formatter: chartShortName },
     },
     yAxis: {
       type: 'value',
@@ -247,7 +320,7 @@ const countOption = computed(() => {
       {
         type: 'bar',
         data: values,
-        barWidth: 14,
+        barMaxWidth: 8,
         itemStyle: {
           borderRadius: [4, 4, 0, 0],
           color: {
@@ -292,12 +365,12 @@ function progressPercent(stats: { tested: number; total: number } | null) {
 }
 
 const overallPercent = computed(() => {
-  if (!state.scan) return hasResults.value ? 100 : 0
+  if (!state.scan || !scanActive.value) return hasResults.value ? 100 : 0
   return progressPercent(state.scan)
 })
 
-const coverageRows = computed(() =>
-  displayRegions.value.map((region) => {
+const coverageRows = computed(() => {
+  const preferred = displayRegions.value.map((region) => {
     const stat = regionStatsFor(region.key)
     return {
       key: region.key,
@@ -305,8 +378,20 @@ const coverageRows = computed(() =>
       colo: region.colos?.[0] || '',
       final: stat.finalCount || 0,
     }
-  }),
-)
+  })
+  const extras = extraRegionStats.value.map((row) => ({
+    key: row.key,
+    name: row.name,
+    colo: row.avgLatency > 0 ? `${row.avgLatency.toFixed(0)} ms` : '',
+    final: row.finalCount || 0,
+  }))
+  if (extras.length) return [...preferred, ...extras]
+  const fallback = state.scan?.regionStats?.find((row) => row.key === 'global')
+  if (fallback && fallback.finalCount > 0) {
+    preferred.push({ key: 'global', name: fallback.name || '全球其他地区', colo: '', final: fallback.finalCount })
+  }
+  return preferred
+})
 
 const coveredCount = computed(() => coverageRows.value.filter((row) => row.final > 0).length)
 </script>
@@ -469,21 +554,21 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
             <div class="section-title"><Activity :size="14" />地区平均延迟</div>
             <span class="mini-legend"><i class="latency"></i>ms</span>
           </div>
-          <ChartBox :option="latencyOption" height="116px" />
+          <ChartBox :option="latencyOption" height="104px" />
         </div>
         <div class="chart-card glass-card">
           <div class="card-head">
             <div class="section-title"><Zap :size="14" />地区平均下载</div>
             <span class="mini-legend"><i class="speed"></i>MB/s</span>
           </div>
-          <ChartBox :option="speedOption" height="116px" />
+          <ChartBox :option="speedOption" height="104px" />
         </div>
         <div class="chart-card glass-card">
           <div class="card-head">
-            <div class="section-title"><ListChecks :size="14" />地区 IP 数量</div>
+            <div class="section-title"><ListChecks :size="14" />地区保留 IP 数量</div>
             <span class="mini-legend"><i class="count"></i>个</span>
           </div>
-          <ChartBox :option="countOption" height="116px" />
+          <ChartBox :option="countOption" height="104px" />
         </div>
       </div>
     </section>
@@ -551,7 +636,7 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
         <div class="coverage-list">
           <div class="coverage-head">
             <span>地区覆盖</span>
-            <em>{{ coveredCount }} / {{ displayRegions.length }}</em>
+            <em>{{ coveredCount }} / {{ coverageRows.length }}</em>
           </div>
           <div class="coverage-chips">
             <div
@@ -583,18 +668,21 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
 
 <style scoped>
 .overview-page {
-  gap: 9px;
-  padding: 10px 18px 6px;
-  min-height: 100%;
+  flex: 1;
+  gap: 7px;
+  padding: 8px 14px 4px;
+  min-height: 0;
   height: auto;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .hero {
   position: relative;
-  min-height: 108px;
+  flex: 0 0 92px;
+  height: 92px;
+  min-height: 92px;
   overflow: hidden;
-  padding: 14px 28px;
+  padding: 8px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -789,7 +877,8 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
 }
 
 .section-block {
-  padding-top: 2px;
+  flex: 0 0 auto;
+  padding-top: 0;
 }
 
 .block-head,
@@ -798,7 +887,7 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 
 .block-meta {
@@ -827,9 +916,9 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
   position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 56px;
-  padding: 0 9px;
+  gap: 7px;
+  height: 50px;
+  padding: 0 8px;
   border: 1px solid rgba(108, 133, 255, 0.14);
   border-radius: 11px;
   background: linear-gradient(145deg, rgba(18, 29, 57, 0.7), rgba(8, 14, 28, 0.72));
@@ -904,18 +993,19 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  width: 27px;
-  height: 27px;
+  width: 24px;
+  height: 24px;
   border: 1px solid rgba(118, 148, 255, 0.25);
   border-radius: 50%;
   color: #90a9ff;
 }
 
 .param-bar {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 13px;
-  padding: 7px 12px;
+  gap: 10px;
+  padding: 6px 10px;
 }
 
 .param-title {
@@ -953,7 +1043,7 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
 }
 
 .param-item select {
-  height: 30px;
+  height: 27px;
   min-width: 72px;
   padding: 0 8px;
   border: 1px solid rgba(108, 133, 255, 0.18);
@@ -968,7 +1058,7 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  height: 27px;
+  height: 24px;
   padding: 0 8px;
   border: 1px solid rgba(69, 199, 152, 0.2);
   border-radius: 6px;
@@ -1009,16 +1099,17 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
 }
 
 .start-btn {
-  height: 39px;
-  padding: 0 27px;
+  height: 34px;
+  padding: 0 24px;
   flex-shrink: 0;
 }
 
 .dashboard-grid {
   display: grid;
   grid-template-columns: 0.9fr 1.6fr;
-  gap: 10px;
-  min-height: 180px;
+  gap: 8px;
+  flex: 0 0 168px;
+  min-height: 0;
 }
 
 .stats-grid {
@@ -1028,7 +1119,7 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
 }
 
 .stat-card {
-  padding: 9px 11px 7px;
+  padding: 7px 9px 4px;
   min-height: 0;
   overflow: hidden;
 }
@@ -1060,8 +1151,8 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
 .stat-icon {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
   border-radius: 8px;
   background: rgba(109, 140, 255, 0.16);
   border: 1px solid rgba(109, 140, 255, 0.28);
@@ -1096,12 +1187,12 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
   display: flex;
   align-items: baseline;
   gap: 4px;
-  margin-top: 6px;
+  margin-top: 4px;
 }
 
 .stat-value {
   color: #f1f5ff;
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 800;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -1116,7 +1207,7 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  height: 17px;
+  height: 15px;
   margin-top: 2px;
 }
 
@@ -1127,7 +1218,7 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
 
 .spark {
   width: 58px;
-  height: 17px;
+  height: 15px;
   color: currentColor;
   opacity: 0.7;
   overflow: visible;
@@ -1206,6 +1297,9 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 3px 5px;
   margin-top: 4px;
+  max-height: 66px;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 .coverage-chip {
@@ -1241,10 +1335,11 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
 .coverage-chip.zero em { color: #5d6a8c; font-weight: 400; }
 
 .summary-card {
-  padding: 12px 12px 9px;
+  padding: 10px 10px 7px;
   display: flex;
   flex-direction: column;
-  min-height: 160px;
+  height: 100%;
+  min-height: 0;
 }
 
 .summary-head {
@@ -1256,8 +1351,8 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
 .summary-icon {
   display: grid;
   place-items: center;
-  width: 39px;
-  height: 39px;
+  width: 34px;
+  height: 34px;
   flex-shrink: 0;
   border: 1px solid rgba(108, 133, 255, 0.22);
   border-radius: 11px;
@@ -1285,7 +1380,7 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
 }
 
 .summary-progress {
-  margin-top: 12px;
+  margin-top: 8px;
 }
 
 .summary-progress-head {
@@ -1322,7 +1417,7 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
   display: flex;
   gap: 8px;
   margin-top: auto;
-  padding-top: 18px;
+  padding-top: 8px;
 }
 
 .summary-actions .btn-ghost {
@@ -1331,8 +1426,11 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
 }
 
 .logs-card {
-  padding: 10px 13px 7px;
-  min-height: 160px;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 11px 6px;
+  height: 100%;
+  min-height: 0;
 }
 
 .logs-head {
@@ -1361,6 +1459,9 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
 .log-list {
   margin-top: 6px;
   border-top: 1px solid rgba(108, 133, 255, 0.1);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .log-row {

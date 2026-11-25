@@ -1,9 +1,9 @@
-三笠优选 MIKASA OPTIMIZER v1.0.6 — 使用说明
+三笠优选 MIKASA OPTIMIZER v1.0.7 — 使用说明
 ================================================
 
 1. 启动
-   安装版：运行「三笠优选_1.0.6_x64-setup.exe」，按向导安装后从开始菜单启动。
-   便携版：解压「三笠优选_1.0.6_x64-portable.zip」，双击「三笠优选.exe」。
+   安装版：运行「三笠优选_1.0.7_x64-setup.exe」，按向导安装后从开始菜单启动。
+   便携版：解压「三笠优选_1.0.7_x64-portable.zip」，双击「三笠优选.exe」。
 
 2. 首次使用
    - 软件每次启动默认进入夜间主题；顶部太阳/月亮按钮可临时切换浅色主题。
@@ -19,15 +19,13 @@
    - 「结果导出」支持选择单个地区，或选择「全部地区」把所有合格节点写入一个 TXT/CSV 文件。
    - 导出可设置最低下载速度（如 5 MB/s）与最高延迟，并勾选备注后缀：城市/国家、下载速度、延迟、colo、来源。
    - 示例：54.250.164.93:443#三笠优选 | 日本东京 | 下载 7.86MB/s
-   - 左侧栏底部新增「打赏作者」，可查看微信 / 支付宝收款码。
 
 3.1 GitHub 订阅上传
    - 点击「GitHub 上传 → 开始上传」，先选择上传范围：
-     合并全部地区（一个 all.txt），或按地区拆分（all.txt + HK/all.txt + JP/all.txt ...）。
+     合并全部地区（一个 all.txt），或按地区拆分（all.txt + HK/all.txt + JP/all.txt + GLOBAL/all.txt ...）。
    - 与结果导出一样，可设置最低下载速度、最高延迟、TXT 备注字段和 TXT/CSV。
    - 上传完成后可直接复制 raw 直链或 jsDelivr CDN 直链。
-   - 示例：https://raw.githubusercontent.com/xxx/xxx/main/mikasa-results/JP/all.txt
-   - 把 xxx/xxx 替换成你自己的 GitHub 用户名和仓库名。
+   - 示例：https://raw.githubusercontent.com/<owner>/<repo>/main/mikasa-results/JP/all.txt
    - 私有仓库的 raw 链接需要登录或 Token，脚本无法匿名读取；要直接放进脚本，请把目标仓库改为 Public。
    - 文件放在 mikasa-results/ 子目录即可，不需要上传到仓库根目录。
 
@@ -48,4 +46,4 @@
    数据库与日志：%APPDATA%\com.mikasa.optimizer\
    默认测速导出目录：%USERPROFILE%\Documents\三笠优选导出\
 
-版本：1.0.6
+版本：1.0.7

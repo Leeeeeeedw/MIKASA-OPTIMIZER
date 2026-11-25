@@ -114,9 +114,20 @@ fn filtered_rows<'a>(all_results: &'a [ScanResult], options: &ExportOptions) -> 
     };
     let region = options.region.trim();
     let export_all = region.is_empty() || region.eq_ignore_ascii_case("all");
+    let export_global = region.eq_ignore_ascii_case("global");
+    let export_unknown = region.eq_ignore_ascii_case("unknown");
     all_results
         .iter()
-        .filter(|r| export_all || r.region == region)
+        .filter(|r| {
+            export_all
+                || if export_global {
+                    !REGION_ORDER.contains(&r.region.as_str()) && r.region != "unknown"
+                } else if export_unknown {
+                    r.region == "unknown"
+                } else {
+                    r.region == region
+                }
+        })
         .filter(|r| min_speed <= 0.0 || r.speed_mb_s >= min_speed)
         .filter(|r| max_latency <= 0.0 || r.latency <= max_latency)
         .collect()
@@ -211,6 +222,21 @@ pub fn build_github_files(
                     }
                 }
                 // 某个地区没有达标节点是正常情况，不应阻止其它地区上传。
+                Err(error) if error.contains("没有符合条件") => {}
+                Err(error) => return Err(error),
+            }
+        }
+        // 非首选地区也单独生成可订阅文件，避免用户只能下载到合并后的 all.txt。
+        for code in ["global", "unknown"] {
+            let mut regional = options.clone();
+            regional.region = code.to_string();
+            match build_export_files(conn, &regional) {
+                Ok(mut built) => {
+                    if let Some(mut file) = built.pop() {
+                        file.name = format!("{}/all.{ext}", code.to_ascii_uppercase());
+                        files.push(file);
+                    }
+                }
                 Err(error) if error.contains("没有符合条件") => {}
                 Err(error) => return Err(error),
             }
@@ -339,6 +365,18 @@ mod tests {
         db::insert_result(conn, &sample_result("hk")).unwrap();
     }
 
+    fn seed_other_regions(conn: &Connection) {
+        let mut de = sample_result("de");
+        de.ip = "198.51.100.11".into();
+        de.colo = "FRA".into();
+        db::insert_result(conn, &de).unwrap();
+
+        let mut unknown = sample_result("unknown");
+        unknown.ip = "198.51.100.12".into();
+        unknown.colo = "XXX".into();
+        db::insert_result(conn, &unknown).unwrap();
+    }
+
     fn export_options() -> ExportOptions {
         ExportOptions {
             scan_id: "scan-test".into(),
@@ -434,6 +472,42 @@ mod tests {
     }
 
     #[test]
+    fn export_supports_global_and_unknown_regions() {
+        let (conn, path) = temp_db();
+        seed(&conn);
+        seed_other_regions(&conn);
+
+        let global = build_export_files(
+            &conn,
+            &ExportOptions {
+                scan_id: "scan-test".into(),
+                region: "global".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(global.len(), 1);
+        assert_eq!(global[0].name, "全球其他地区.txt");
+        assert!(global[0].content.contains("198.51.100.11:443"));
+        assert!(!global[0].content.contains("198.51.100.12:443"));
+
+        let unknown = build_export_files(
+            &conn,
+            &ExportOptions {
+                scan_id: "scan-test".into(),
+                region: "unknown".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(unknown.len(), 1);
+        assert_eq!(unknown[0].name, "未知地区.txt");
+        assert!(unknown[0].content.contains("198.51.100.12:443"));
+        assert!(!unknown[0].content.contains("198.51.100.11:443"));
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
     fn github_files_use_ascii_paths_and_split_regions() {
         let (conn, path) = temp_db();
         seed(&conn);
@@ -451,6 +525,25 @@ mod tests {
         assert!(split.iter().any(|file| file.name == "HK/all.txt"));
         assert!(split.iter().any(|file| file.name == "all.txt"));
         assert!(!split.iter().any(|file| file.name.contains("全部地区")));
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn github_files_include_global_and_unknown_partitions() {
+        let (conn, path) = temp_db();
+        seed(&conn);
+        seed_other_regions(&conn);
+        let options = ExportOptions {
+            scan_id: "scan-test".into(),
+            ..Default::default()
+        };
+
+        let split = build_github_files(&conn, &options, true).unwrap();
+        let global = split.iter().find(|file| file.name == "GLOBAL/all.txt").unwrap();
+        let unknown = split.iter().find(|file| file.name == "UNKNOWN/all.txt").unwrap();
+        assert!(global.content.contains("198.51.100.11:443"));
+        assert!(!global.content.contains("198.51.100.12:443"));
+        assert!(unknown.content.contains("198.51.100.12:443"));
         let _ = std::fs::remove_file(path);
     }
 

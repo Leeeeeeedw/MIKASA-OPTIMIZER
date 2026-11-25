@@ -29,7 +29,7 @@ import {
   Radio,
 } from '@lucide/vue'
 import { api, isTauri } from '../api'
-import { state, refreshDashboard, refreshSourceStats } from '../store'
+import { state, refreshDashboard, refreshSourceStats, isScanActive } from '../store'
 import RegionFlag from '../components/RegionFlag.vue'
 import type { CensysStatus, CmRawPreview, CmSourceStatus, CommunitySourceInfo, FilePreview, FofaQueryPreview, FofaStatus, ImportResult, RegistryDiscovery, RegistrySource, SourceOverview, SourceQuality, UrlSource } from '../types'
 
@@ -323,16 +323,40 @@ async function importPaste() {
   }
 }
 
+function parseUrlInput() {
+  const found = new Set<string>()
+  for (const raw of urlInput.value.split(/[\s,，;；]+/)) {
+    const value = raw.trim()
+    if (!/^https?:\/\//i.test(value)) continue
+    try {
+      const parsed = new URL(value)
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') found.add(value)
+    } catch {
+      /* 忽略不完整或非法的地址 */
+    }
+  }
+  return [...found]
+}
+
+async function saveUrlSources(urls: string[]) {
+  for (const url of urls) {
+    urlSources.value = await api.addUrlSource(url, urlInterval.value)
+  }
+}
+
 async function importUrlText() {
-  const urls = urlInput.value.split(/\s+/).filter(Boolean)
+  const urls = parseUrlInput()
   if (!urls.length) {
-    message.warning('请输入至少一个 URL')
+    message.warning('请输入至少一个以 http:// 或 https:// 开头的链接')
     return
   }
   busy.value = true
   try {
+    await saveUrlSources(urls)
     setImport(await api.importUrls({ urls, defaultPort: state.settings.defaultPort, region: importRegion.value }), 'URL 导入')
     urlInput.value = ''
+    await loadUrlSources()
+    message.success(`${urls.length} 个链接已保存，下次可直接单独更新`, { duration: 5000 })
   } catch (error) {
     message.error(String(error))
   } finally {
@@ -372,14 +396,15 @@ async function loadUrlSources() {
 }
 
 async function addUrlSource() {
-  if (!urlInput.value.trim().startsWith('http')) {
-    message.warning('请输入以 http:// 或 https:// 开头的订阅链接')
+  const urls = parseUrlInput()
+  if (!urls.length) {
+    message.warning('请输入以 http:// 或 https:// 开头的订阅链接，每行一个')
     return
   }
   busy.value = true
   try {
-    urlSources.value = await api.addUrlSource(urlInput.value.trim(), urlInterval.value)
-    message.success('订阅链接已添加')
+    await saveUrlSources(urls)
+    message.success(`已保存 ${urls.length} 个订阅链接，下次打开仍会保留`)
     urlInput.value = ''
   } catch (error) {
     message.error(String(error))
@@ -646,7 +671,7 @@ const sparkBars = computed(() => {
   return values.map((value) => Math.max(8, Math.round((value / max) * 100)))
 })
 
-async function refreshAllSources() {
+async function refreshSourceStatus() {
   busy.value = true
   try {
     await Promise.all([
@@ -658,7 +683,150 @@ async function refreshAllSources() {
       loadCensys(),
       loadFofa(),
     ])
-    message.success('已刷新候选池与全部来源状态')
+    message.success('已刷新来源状态')
+  } catch (error) {
+    message.error(String(error))
+  } finally {
+    busy.value = false
+  }
+}
+
+type SyncTally = { sources: number; added: number; updated: number; failed: number; errors: string[] }
+
+/**
+ * 右侧“一键刷新”不是刷新界面，而是对所有已经有候选记录的数据源执行真实拉取。
+ * 网络链接、社区源、CM、Cloudflare、FOFA、Censys 各自独立，单源失败不影响其他源。
+ */
+async function syncAllSources() {
+  if (isScanActive()) {
+    message.warning('优选任务正在运行，请先暂停或结束任务后再同步来源')
+    return
+  }
+  busy.value = true
+  const tally: SyncTally = { sources: 0, added: 0, updated: 0, failed: 0, errors: [] }
+  try {
+    await Promise.all([loadCommunity(), loadUrlSources(), loadCm(), loadCensys(), loadFofa(), refreshSourceStats()])
+
+    const jobs: Array<Promise<void>> = []
+    const countOf = (key: string) => Number(sourceCounts.value[key] || 0)
+
+    if (urlSources.value.length) {
+      const total = urlSources.value.length
+      jobs.push((async () => {
+        try {
+          const res = await api.fetchAllUrlSources()
+          tally.sources += total
+          tally.added += res.added
+          tally.updated += res.updated
+          tally.failed += res.failed
+          tally.errors.push(...res.messages.filter((item) => item.startsWith('[失败]')))
+        } catch (error) {
+          tally.sources += total
+          tally.failed += total
+          tally.errors.push(`网络链接：${String(error)}`)
+        }
+      })())
+    }
+
+    for (const key of communitySourceKeys.value) {
+      if (Number(communityMap.value[key]?.count || countOf(key)) <= 0) continue
+      jobs.push((async () => {
+        try {
+          const result = await api.communityFetch(key, communityMax.value)
+          tally.sources += 1
+          tally.added += result.added
+          tally.updated += result.updated
+        } catch (error) {
+          tally.sources += 1
+          tally.failed += 1
+          tally.errors.push(`${communityMap.value[key]?.name || key}：${String(error)}`)
+        }
+      })())
+    }
+
+    if (Number(cmStatus.value?.count || countOf('cm')) > 0) {
+      jobs.push((async () => {
+        try {
+          const result = await api.cmFetch('auto')
+          tally.sources += 1
+          tally.added += result.added
+          tally.updated += result.updated
+        } catch (error) {
+          tally.sources += 1
+          tally.failed += 1
+          tally.errors.push(`CM IP 库：${String(error)}`)
+        }
+      })())
+    }
+
+    if (countOf('cloudflare') > 0) {
+      jobs.push((async () => {
+        try {
+          const result = await api.cloudflareFetch({ ipv4: useIpv4.value, ipv6: useIpv6.value, perCidr: perCidr.value })
+          tally.sources += 1
+          tally.added += result.added
+          tally.updated += result.updated
+        } catch (error) {
+          tally.sources += 1
+          tally.failed += 1
+          tally.errors.push(`Cloudflare：${String(error)}`)
+        }
+      })())
+    }
+
+    if (fofaStatus.value.configured && countOf('fofa') > 0) {
+      jobs.push((async () => {
+        try {
+          const result = await api.fofaFetch(fofaRegions.value, fofaMax.value)
+          tally.sources += 1
+          tally.added += result.added
+          tally.updated += result.updated
+        } catch (error) {
+          tally.sources += 1
+          tally.failed += 1
+          tally.errors.push(`FOFA：${String(error)}`)
+        }
+      })())
+    }
+
+    if (censysStatus.value.configured && countOf('censys') > 0) {
+      jobs.push((async () => {
+        try {
+          const result = await api.censysFetch(censysMax.value)
+          tally.sources += 1
+          tally.added += result.result.added
+          tally.updated += result.result.updated
+        } catch (error) {
+          tally.sources += 1
+          tally.failed += 1
+          tally.errors.push(`Censys：${String(error)}`)
+        }
+      })())
+    }
+
+    if (!jobs.length) {
+      message.warning('当前没有已保存或已有候选记录的远端来源，请先添加网络链接或获取来源')
+      return
+    }
+
+    await Promise.all(jobs)
+    await Promise.all([
+      refreshDashboard(),
+      refreshSourceStats(),
+      loadCommunity(),
+      loadUrlSources(),
+      loadCm(),
+      loadCensys(),
+      loadFofa(),
+    ])
+
+    const summary = `已同步 ${tally.sources} 个来源 · 新增 ${tally.added} · 更新 ${tally.updated}${tally.failed ? ` · 失败 ${tally.failed}` : ''}`
+    if (tally.failed) {
+      message.warning(summary, { duration: 9000 })
+      if (tally.errors.length) urlReport.value = tally.errors.slice(0, 12).join('\n')
+    } else {
+      message.success(summary, { duration: 6000 })
+    }
   } catch (error) {
     message.error(String(error))
   } finally {
@@ -690,7 +858,7 @@ onMounted(async () => {
           <Database :size="15" />
           <span>候选池 <strong>{{ totalCandidates.toLocaleString() }}</strong> 条</span>
         </div>
-        <button class="btn-ghost" :disabled="busy" @click="refreshAllSources">
+        <button class="btn-ghost" :disabled="busy" @click="refreshSourceStatus">
           <RefreshCw :size="13" :class="{ spin: busy }" />刷新状态
         </button>
       </div>
@@ -741,9 +909,9 @@ onMounted(async () => {
 
       <aside class="source-aside">
         <div class="glass-card update-card">
-          <button class="update-button" :disabled="busy" @click="refreshAllSources">
+          <button class="update-button" :disabled="busy" @click="syncAllSources">
             <RefreshCw :size="16" :class="{ spin: busy }" />
-            <span><strong>{{ busy ? '正在同步…' : '一键刷新' }}</strong><em>候选池与全部来源状态</em></span>
+            <span><strong>{{ busy ? '正在同步…' : '一键刷新' }}</strong><em>真实同步所有已有候选的来源</em></span>
           </button>
           <div class="candidate-total">
             <span>候选池总数</span>
@@ -860,6 +1028,7 @@ onMounted(async () => {
           <button class="btn-ghost" :disabled="busy" @click="addUrlSource"><Plus :size="13" />添加订阅</button>
           <button class="btn-primary" :disabled="busy" @click="importUrlText">立即导入链接</button>
         </div>
+        <p class="hint">链接会自动保存到本地数据库，下次打开仍会出现在下方，可单独点击「更新」拉取最新 IP。</p>
         <div class="source-list">
           <div v-for="item in urlSources" :key="item.id" class="source-row">
             <div class="source-row-main">
@@ -867,7 +1036,9 @@ onMounted(async () => {
               <span class="muted">每 {{ item.intervalMinutes }} 分钟 · 最近 {{ item.lastCount || 0 }} 条 · {{ item.lastStatus || '待拉取' }}</span>
             </div>
             <div class="row-actions">
-              <button class="icon-btn" title="立即拉取" @click="fetchUrl(item.id)"><RefreshCw :size="13" /></button>
+              <button class="row-update" title="立即拉取该链接的最新 IP" :disabled="busy" @click="fetchUrl(item.id)">
+                <RefreshCw :size="12" />更新
+              </button>
               <button class="icon-btn danger" title="删除" @click="removeUrl(item.id)"><Trash2 :size="13" /></button>
             </div>
           </div>
@@ -1327,6 +1498,9 @@ onMounted(async () => {
 .url-text { color: #aebdde; font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .muted { color: #586888; font-size: 9.5px; }
 .row-actions { display: flex; gap: 4px; }
+.row-update { display: inline-flex; align-items: center; gap: 4px; height: 25px; padding: 0 8px; border: 1px solid rgba(109, 140, 255, 0.28); border-radius: 6px; background: rgba(71, 101, 207, 0.12); color: #9fb6ff; font-size: 9.5px; cursor: pointer; }
+.row-update:hover { border-color: rgba(109, 140, 255, 0.5); background: rgba(71, 101, 207, 0.22); color: #d3e0ff; }
+.row-update:disabled { opacity: .45; cursor: default; }
 .empty-note { padding: 24px; text-align: center; color: #566382; font-size: 10.5px; }
 .form-column { display: flex; flex-direction: column; gap: 10px; }
 .form-column label { display: flex; flex-direction: column; gap: 5px; color: #7f8dad; font-size: 10px; }

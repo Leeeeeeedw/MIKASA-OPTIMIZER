@@ -47,8 +47,8 @@ onMounted(async () => {
           <i class="drift d1"></i><i class="drift d2"></i><i class="drift d3"></i><i class="drift d4"></i>
         </div>
         <StatusStrip />
-        <div class="content-scroll">
-          <div v-if="scanActive && state.activeView !== 'scan'" class="scan-lock-banner">
+        <div class="content-scroll" :class="{ 'overview-active': state.activeView === 'overview' }">
+          <div v-if="scanActive && state.activeView !== 'scan' && state.activeView !== 'overview'" class="scan-lock-banner">
             <ScanLine :size="14" />
             <span>优选任务正在运行。当前页面仅供查看，请勿保存设置、修改来源或启动新任务。</span>
             <button @click="state.activeView = 'scan'">返回扫描任务<ChevronRight :size="12" /></button>
@@ -163,6 +163,19 @@ html[data-theme="light"] .sakura-haze::before {
   overflow-y: auto;
   overflow-x: hidden;
   padding: 0 18px 16px;
+}
+
+/* 总览页固定为单屏布局：不使用整页滚动，由页面内部各区块分配高度。 */
+.content-scroll.overview-active {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 8px;
+}
+
+.content-scroll.overview-active > .page {
+  flex: 1;
+  min-height: 0;
 }
 
 .scan-lock-banner {

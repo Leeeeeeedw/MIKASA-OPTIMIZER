@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useDialog, useMessage } from 'naive-ui'
 import { ArrowDownWideNarrow, Download, Gauge, Medal, RefreshCw, Search, Trophy, Zap } from '@lucide/vue'
 import { api } from '../api'
@@ -26,7 +26,6 @@ const regionLabel = computed(() => {
   if (region.value === 'unknown') return '未知地区'
   return currentRegion.value?.name || '地区'
 })
-const regionOrder = computed(() => new Map(state.regions.map((item, index) => [item.key, index])))
 function inRegionGroup(row: ScanResult) {
   if (region.value === 'all') return true
   if (region.value === 'global') {
@@ -46,15 +45,16 @@ const filtered = computed(() => {
     inRegionGroup(row),
   )
   return list.sort((a, b) => {
-    if (region.value === 'all') {
-      const priorityA = regionOrder.value.get(a.region) ?? (a.region === 'unknown' ? 9 : 7)
-      const priorityB = regionOrder.value.get(b.region) ?? (b.region === 'unknown' ? 9 : 7)
-      if (priorityA !== priorityB) return priorityA - priorityB
-    }
+    // 正式通过的结果永远排在参考结果之前，再按当前排序方式从最好到最差。
+    const passA = a.status === 'passed' ? 0 : 1
+    const passB = b.status === 'passed' ? 0 : 1
+    if (passA !== passB) return passA - passB
     if (sortMode.value === 'latency') return a.latency - b.latency
     if (sortMode.value === 'speed') return b.speedMbS - a.speedMbS
     if (sortMode.value === 'loss') return a.loss - b.loss
-    return score(b) - score(a)
+    const byScore = score(b) - score(a)
+    if (Math.abs(byScore) > 0.0001) return byScore
+    return b.speedMbS - a.speedMbS || a.latency - b.latency
   })
 })
 
@@ -160,6 +160,10 @@ function batchRetest() {
 }
 
 onMounted(load)
+watch(
+  () => [state.selectedScanId, state.dashboard.latestScanId],
+  () => void load(),
+)
 </script>
 
 <template>

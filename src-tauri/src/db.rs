@@ -437,9 +437,8 @@ fn select_candidates_for_scan(mut all: Vec<Candidate>, request: &ScanRequest) ->
     if !request.source_filter.is_empty() && !request.source_filter.iter().any(|s| s == "all") {
         all.retain(|c| c.sources.iter().any(|s| request.source_filter.contains(s)));
     }
-    // 已知属于其他地区的候选不进入七地区测试窗口；初始地区为空的候选仍保留，
-    // 因为它们可能是 CM/FOFA 未标注地区的节点，实际归属要等 CF-RAY colo 验证。
-    all.retain(|c| c.initial_region.is_empty() || selected.contains(&c.initial_region));
+    // 七地区优先，但绝不丢弃已知属于其他国家的候选：
+    // 每轮固定留出一部分探索名额，保证德国、加拿大、澳洲等非首选地区同样能被识别和测速。
 
     let reserve = if request.smart_supplement { 3.0 } else { 1.8 };
     let cap = ((request.per_region_top.max(1) * selected.len().max(1)) as f64 * reserve) as usize + 600;
@@ -504,11 +503,14 @@ fn select_candidates_for_scan(mut all: Vec<Candidate>, request: &ScanRequest) ->
     let mut groups: HashMap<String, Vec<Candidate>> = HashMap::new();
     let mut group_order: Vec<String> = selected.clone();
     group_order.push("__unlabeled".to_string());
+    group_order.push("__other".to_string());
     for candidate in all {
         let key = if selected.contains(&candidate.initial_region) {
             candidate.initial_region.clone()
-        } else {
+        } else if candidate.initial_region.is_empty() {
             "__unlabeled".to_string()
+        } else {
+            "__other".to_string()
         };
         groups.entry(key).or_default().push(candidate);
     }
@@ -520,6 +522,9 @@ fn select_candidates_for_scan(mut all: Vec<Candidate>, request: &ScanRequest) ->
     let base_quota = (request.per_region_top.max(1) * 2)
         .min(per_group_share)
         .max(1);
+    // 非首选地区固定探索配额：窗口越大保留越多，但不超过一半，避免反过来挤掉首选地区。
+    let other_quota = (limit / 6).clamp(60, 240).min(limit / 2).max(1);
+    let preferred_budget = limit.saturating_sub(other_quota);
     let mut chosen: Vec<Candidate> = Vec::with_capacity(limit);
     let mut leftovers: Vec<Candidate> = Vec::new();
     for key in &group_order {
@@ -527,9 +532,15 @@ fn select_candidates_for_scan(mut all: Vec<Candidate>, request: &ScanRequest) ->
             continue;
         };
         sort_best_first(&mut group);
-        let take = base_quota
+        let quota = if key == "__other" { other_quota } else { base_quota };
+        let budget = if key == "__other" {
+            limit.saturating_sub(chosen.len())
+        } else {
+            preferred_budget.saturating_sub(chosen.len())
+        };
+        let take = quota
             .min(group.len())
-            .min(limit.saturating_sub(chosen.len()));
+            .min(budget);
         chosen.extend(group.drain(..take));
         leftovers.extend(group);
     }
@@ -745,16 +756,59 @@ pub fn dashboard(conn: &Connection) -> Result<DashboardData, String> {
             data.latest_scan_at = scan.finished_at;
         }
         let results = list_results(conn, scan_id, "all")?;
-        data.usable = results.len();
-        data.recent_results = results.iter().take(12).cloned().collect();
+        // dashboard 的“可用 / 地区覆盖”只统计正式通过的节点。
+        // 结果表同时保留 latency_below / speed_below 参考记录，不能把这些
+        // 仅展示的记录误算成可导出节点。
+        let passed_results: Vec<&ScanResult> = results
+            .iter()
+            .filter(|row| row.status == "passed")
+            .collect();
+        data.usable = passed_results.len();
+        data.recent_results = passed_results.iter().take(12).map(|row| (*row).clone()).collect();
         for key in REGION_ORDER {
-            let rr: Vec<&ScanResult> = results.iter().filter(|r| r.region == key).collect();
+            let rr: Vec<&ScanResult> = passed_results
+                .iter()
+                .copied()
+                .filter(|r| r.region == key)
+                .collect();
             let avg_latency = if rr.is_empty() { 0.0 } else { rr.iter().map(|r| r.latency).sum::<f64>() / rr.len() as f64 };
             let avg_speed = if rr.is_empty() { 0.0 } else { rr.iter().map(|r| r.speed_mb_s).sum::<f64>() / rr.len() as f64 };
             data.region_stats.push(RegionStats {
                 key: key.to_string(),
                 name: region_name(key).to_string(),
                 flag: region_flag(key).to_string(),
+                candidates: 0,
+                tcp_ok: 0,
+                https_ok: 0,
+                colo_ok: 0,
+                latency_ok: 0,
+                download_ok: rr.len(),
+                speed_ok: rr.len(),
+                final_count: rr.len(),
+                avg_latency,
+                avg_speed,
+                latency_eliminated: 0,
+            });
+        }
+        // 其他国家的达标结果同样进入总览与图表，而不是被折叠成看不见的“0 / 7”。
+        let mut extra_groups: HashMap<String, Vec<&ScanResult>> = HashMap::new();
+        for row in passed_results.iter().copied() {
+            if !REGION_ORDER.contains(&row.region.as_str()) {
+                extra_groups.entry(row.region.clone()).or_default().push(row);
+            }
+        }
+        let mut extra_rows: Vec<(String, Vec<&ScanResult>)> = extra_groups.into_iter().collect();
+        extra_rows.sort_by(|a, b| b.1.len().cmp(&a.1.len()));
+        for (key, rr) in extra_rows {
+            if key.is_empty() {
+                continue;
+            }
+            let avg_latency = rr.iter().map(|r| r.latency).sum::<f64>() / rr.len().max(1) as f64;
+            let avg_speed = rr.iter().map(|r| r.speed_mb_s).sum::<f64>() / rr.len().max(1) as f64;
+            data.region_stats.push(RegionStats {
+                key: key.clone(),
+                name: region_name(&key).to_string(),
+                flag: region_flag(&key).to_string(),
                 candidates: 0,
                 tcp_ok: 0,
                 https_ok: 0,
@@ -1105,6 +1159,7 @@ pub fn github_history(conn: &Connection, limit: usize) -> Result<Vec<serde_json:
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     fn candidate(
         id: i64,
@@ -1155,6 +1210,46 @@ mod tests {
         }
     }
 
+    fn temp_db() -> (Connection, PathBuf) {
+        let path = std::env::temp_dir().join(format!(
+            "mikasa-db-test-{}-{}.sqlite",
+            std::process::id(),
+            uuid::Uuid::new_v4()
+        ));
+        let _ = std::fs::remove_file(&path);
+        let conn = open_database(&path).expect("open temp database");
+        (conn, path)
+    }
+
+    fn scan_result(
+        scan_id: &str,
+        ip: &str,
+        region: &str,
+        status: &str,
+        latency: f64,
+        speed_mb_s: f64,
+    ) -> ScanResult {
+        ScanResult {
+            id: 0,
+            scan_id: scan_id.to_string(),
+            rank: 1,
+            ip: ip.to_string(),
+            port: 443,
+            region: region.to_string(),
+            region_name: String::new(),
+            colo: if region == "hk" { "HKG" } else { "LAX" }.to_string(),
+            latency,
+            jitter: 0.0,
+            speed_mb_s,
+            speed_mbps: speed_mb_s * 8.0,
+            loss: 0.0,
+            stability: 100.0,
+            source: "test".to_string(),
+            status: status.to_string(),
+            tested_at: "2026-11-26 00:00:00".to_string(),
+        }
+    }
+
     #[test]
     fn scan_window_uses_historical_performance_not_import_order() {
         let pool = vec![
@@ -1183,6 +1278,48 @@ mod tests {
         assert_eq!(selected.len(), 4);
         assert!(selected.iter().any(|item| item.initial_region == "jp"));
         assert!(selected.iter().any(|item| item.initial_region == "hk"));
+    }
+
+    #[test]
+    fn dashboard_counts_only_passed_results_and_keeps_other_regions() {
+        let (conn, path) = temp_db();
+        let scan_id = "scan-dashboard-test";
+        create_scan(&conn, scan_id, &request(&["hk", "jp", "us"], 2, 8)).unwrap();
+        insert_result(
+            &conn,
+            &scan_result(scan_id, "198.51.100.1", "hk", "passed", 40.0, 20.0),
+        )
+        .unwrap();
+        insert_result(
+            &conn,
+            &scan_result(scan_id, "198.51.100.2", "jp", "passed", 60.0, 15.0),
+        )
+        .unwrap();
+        insert_result(
+            &conn,
+            &scan_result(scan_id, "198.51.100.3", "us", "speed_below", 80.0, 0.5),
+        )
+        .unwrap();
+        insert_result(
+            &conn,
+            &scan_result(scan_id, "198.51.100.4", "de", "passed", 90.0, 12.0),
+        )
+        .unwrap();
+        finish_scan(&conn, scan_id, "completed", 4, 3, 67.5, 15.67).unwrap();
+
+        let dashboard = dashboard(&conn).unwrap();
+        assert_eq!(dashboard.usable, 3);
+        assert_eq!(dashboard.recent_results.len(), 3);
+        assert!(dashboard.recent_results.iter().all(|row| row.status == "passed"));
+
+        let hk = dashboard.region_stats.iter().find(|row| row.key == "hk").unwrap();
+        let us = dashboard.region_stats.iter().find(|row| row.key == "us").unwrap();
+        let de = dashboard.region_stats.iter().find(|row| row.key == "de").unwrap();
+        assert_eq!(hk.final_count, 1);
+        assert_eq!(us.final_count, 0, "speed_below must not be counted as usable");
+        assert_eq!(de.final_count, 1, "non-preferred regions must remain visible");
+        drop(conn);
+        let _ = std::fs::remove_file(path);
     }
 }
 
