@@ -134,34 +134,12 @@ Cloudflare Anycast 受本地网络、时段和线路影响，软件只展示真�
 **GitHub 上传 401/403？**  
 检查 Token 是否过期、是否具有目标仓库 Contents 读写权限，以及分支是否受保护。
 
-**打赏收款码在哪里？**  
-收款码只随正式安装包提供，源码仓库不包含原图和密钥。客户端会校验密文完整性，
-但仍无法阻止有能力的逆向者从本地客户端提取，请勿将客户端交给不可信的人。
-
 ## 数据与隐私
 
 - 顶部只显示省份和运营商，不显示公网 IP、街道、坐标或城市级位置。
 - FOFA、GitHub、Censys 凭据保存在 Windows 凭据管理器。
 - 历史记录保存在本地 SQLite，不上传服务器。
 - GitHub 上传只上传你确认的测速结果文件。
-
-## 从源码构建
-
-```powershell
-cd mikasa-optimizer
-npm install
-npm run build
-npx tauri build
-```
-
-构建安装包前需要设置打赏码解密密钥：
-
-```powershell
-$env:MIKASA_DONATE_KEY = (Get-Content .env.donation.local | Where-Object { $_ -match '^MIKASA_DONATE_KEY=' }) -replace '^MIKASA_DONATE_KEY=', ''
-npx tauri build --bundles nsis
-```
-
-没有密钥时，源码可以正常构建，但打赏弹窗会显示「收款码未随源码公开」。
 
 ## 许可证
 
