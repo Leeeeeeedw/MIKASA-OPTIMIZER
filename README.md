@@ -49,7 +49,6 @@ GitHub 订阅上传、历史复测与浅色/夜间主题。
 
 - `MIKASA_OPTIMIZER_1.0.5_x64_setup.exe`：NSIS 安装版，安装到当前用户目录，不需要管理员权限。
 - `MIKASA_OPTIMIZER_1.0.5_x64_portable.zip`：便携版，解压后双击 `三笠优选.exe`。
-- `MIKASA_OPTIMIZER_1.0.5_source.zip`：源码包，不包含打赏收款码原图、解密密钥、数据库和构建产物。
 
 系统要求：
 
@@ -97,9 +96,11 @@ GitHub 订阅上传、历史复测与浅色/夜间主题。
 上传完成后可直接复制 raw 直链，例如：
 
 ```text
-https://raw.githubusercontent.com/guyue1337/MikasaIP/main/mikasa-results/all.txt
-https://raw.githubusercontent.com/guyue1337/MikasaIP/main/mikasa-results/JP/all.txt
+https://raw.githubusercontent.com/xxx/xxx/main/mikasa-results/all.txt
+https://raw.githubusercontent.com/xxx/xxx/main/mikasa-results/JP/all.txt
 ```
+
+把 `xxx/xxx` 替换成你自己的 GitHub 用户名和仓库名。
 
 如果希望脚本匿名读取：
 
@@ -108,7 +109,7 @@ https://raw.githubusercontent.com/guyue1337/MikasaIP/main/mikasa-results/JP/all.
 3. 直接使用 raw 直链，或使用 jsDelivr 加速：
 
 ```text
-https://cdn.jsdelivr.net/gh/guyue1337/MikasaIP@main/mikasa-results/all.txt
+https://cdn.jsdelivr.net/gh/xxx/xxx@main/mikasa-results/all.txt
 ```
 
 私有仓库的 raw 链接需要登录或 Token，脚本无法匿名访问。公开仓库不需要 Token，

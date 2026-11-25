@@ -26,7 +26,8 @@
      合并全部地区（一个 all.txt），或按地区拆分（all.txt + HK/all.txt + JP/all.txt ...）。
    - 与结果导出一样，可设置最低下载速度、最高延迟、TXT 备注字段和 TXT/CSV。
    - 上传完成后可直接复制 raw 直链或 jsDelivr CDN 直链。
-   - 示例：https://raw.githubusercontent.com/guyue1337/MikasaIP/main/mikasa-results/JP/all.txt
+   - 示例：https://raw.githubusercontent.com/xxx/xxx/main/mikasa-results/JP/all.txt
+   - 把 xxx/xxx 替换成你自己的 GitHub 用户名和仓库名。
    - 私有仓库的 raw 链接需要登录或 Token，脚本无法匿名读取；要直接放进脚本，请把目标仓库改为 Public。
    - 文件放在 mikasa-results/ 子目录即可，不需要上传到仓库根目录。
 
