@@ -84,7 +84,7 @@ export const state = reactive({
   sourceCounts: {} as Record<string, number>,
   sourceStats: [] as SourceOverview[],
   dataDir: '',
-  version: '1.0.5',
+  version: '1.0.6',
   network: null as NetworkInfo | null,
   networkLoading: false,
   activeView: 'overview' as ViewKey,

@@ -360,6 +360,7 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
           class="region-card"
           :class="{ selected: state.selectedRegions.includes(region.key) }"
           :disabled="scanActive"
+          :title="`${region.name} · ${region.colos.join(' · ')}`"
           @click="toggleRegion(region.key)"
         >
           <RegionFlag :code="region.key" :width="24" />
@@ -552,11 +553,18 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
             <span>地区覆盖</span>
             <em>{{ coveredCount }} / {{ displayRegions.length }}</em>
           </div>
-          <div v-for="row in coverageRows" :key="row.key" class="coverage-row">
-            <RegionFlag :code="row.key" :width="16" />
-            <span class="coverage-name">{{ row.name }}</span>
-            <span class="coverage-colo">{{ row.colo || '—' }}</span>
-            <span class="coverage-value" :class="{ zero: row.final === 0 }">{{ row.final }} 个</span>
+          <div class="coverage-chips">
+            <div
+              v-for="row in coverageRows"
+              :key="row.key"
+              class="coverage-chip"
+              :class="{ zero: row.final === 0 }"
+              :title="`${row.name} · ${row.colo || '未知 colo'} · ${row.final} 个`"
+            >
+              <RegionFlag :code="row.key" :width="13" />
+              <span class="coverage-name">{{ row.name }}</span>
+              <em>{{ row.final }}</em>
+            </div>
           </div>
         </div>
         <div class="summary-actions">
@@ -860,6 +868,7 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
   color: #e3eaff;
   font-size: 11px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .region-copy em {
@@ -894,6 +903,7 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
 .all-region .region-globe {
   display: grid;
   place-items: center;
+  flex-shrink: 0;
   width: 27px;
   height: 27px;
   border: 1px solid rgba(118, 148, 255, 0.25);
@@ -1191,39 +1201,44 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
   color: #9fb2e0;
 }
 
-.coverage-row {
+.coverage-chips {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 3px 5px;
+  margin-top: 4px;
+}
+
+.coverage-chip {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 4px;
+  min-width: 0;
   height: 20px;
-  font-size: 10px;
+  padding: 0 5px;
+  border: 1px solid rgba(108, 133, 255, 0.1);
+  border-radius: 5px;
+  background: rgba(98, 124, 215, 0.06);
   color: #a8b6d6;
+  font-size: 9px;
 }
 
 .coverage-name {
   flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.coverage-colo {
-  color: #6d7ea6;
-  font-size: 9px;
-  letter-spacing: 0.04em;
-}
-
-.coverage-value {
-  min-width: 38px;
-  text-align: right;
+.coverage-chip em {
+  font-style: normal;
   color: #57e39b;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
-.coverage-value.zero {
-  color: #5d6a8c;
-  font-weight: 400;
-}
+.coverage-chip.zero { color: #5d6a8c; }
+.coverage-chip.zero em { color: #5d6a8c; font-weight: 400; }
 
 .summary-card {
   padding: 12px 12px 9px;
@@ -1411,12 +1426,54 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
 @media (max-width: 1400px) {
   .hero-quote { display: none; }
   .hero-earth-img { right: 0; width: 460px; opacity: 0.42; }
-  .region-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-  .charts-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .charts-grid > .chart-card:last-child { grid-column: span 2; }
+  .region-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+  .charts-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .charts-grid > .chart-card:last-child { grid-column: auto; }
 }
 
-@media (max-width: 1280px) {
+@media (max-width: 1400px), (max-height: 860px) {
+  .overview-page { gap: 6px; padding: 8px 14px 5px; }
+  .hero { min-height: 88px; padding: 8px 22px; }
+  .hero h1 { font-size: 25px; }
+  .hero p { margin-top: 2px; }
+  .hero-badges { margin-top: 4px; }
+  .hero-icon { width: 48px; height: 48px; }
+  .hero-sakura { width: 270px; height: 108px; top: -26px; }
+  .block-head { margin-bottom: 6px; }
+  .section-title { font-size: 13.5px; }
+  .block-meta { font-size: 9.5px; }
+  .region-card { height: 44px; padding: 0 7px; gap: 6px; }
+  .region-copy strong { font-size: 10px; }
+  .region-copy em { display: none; }
+  .region-check { width: 16px; height: 16px; }
+  .all-region .region-globe { width: 23px; height: 23px; }
+  .param-bar { gap: 8px; padding: 4px 10px; }
+  .param-title { gap: 5px; padding-right: 9px; font-size: 11px; }
+  .param-items { flex-wrap: nowrap; gap: 8px; }
+  .param-item { gap: 4px; font-size: 9.5px; }
+  .param-item select { height: 27px; min-width: 62px; padding: 0 5px; font-size: 10px; }
+  .source-inline { display: none; }
+  .smart-pill { height: 25px; padding: 0 6px; font-size: 9px; }
+  .param-note { font-size: 9px; }
+  .start-btn { height: 34px; padding: 0 18px; font-size: 12px; }
+  .stats-grid { gap: 6px; }
+  .stat-card { padding: 7px 9px 5px; }
+  .stat-icon { width: 26px; height: 26px; }
+  .stat-label { font-size: 10.5px; }
+  .stat-value { font-size: 20px; }
+  .chart-card { padding: 8px 9px 2px; }
+  .logs-card { min-height: 148px; padding: 8px 10px 5px; }
+  .log-row { height: 19px; }
+  .summary-card { min-height: 148px; padding: 9px 10px 7px; }
+  .summary-icon { width: 32px; height: 32px; }
+  .summary-title { font-size: 13px; }
+  .summary-progress { margin-top: 7px; }
+  .coverage-list { margin-top: 4px; }
+  .summary-actions { padding-top: 8px; }
+  .overview-footer { font-size: 9px; }
+}
+
+@media (max-width: 1199px) {
   .overview-page { padding-left: 14px; padding-right: 14px; }
   .hero { padding: 12px 20px; }
   .hero-en { display: none; }

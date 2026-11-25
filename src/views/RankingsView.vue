@@ -344,7 +344,7 @@ onMounted(load)
 .rank-caption { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; margin: 14px 1px 7px; color: #9eafd1; font-size: 10.5px; }
 .caption-note { color: #5e6d8d; font-size: 9px; text-align: right; }
 .table-wrap { overflow-x: auto; border-top: 1px solid rgba(108, 133, 255, 0.1); }
-.rank-row { display: grid; grid-template-columns: 36px minmax(135px, 0.55fr) 45px 88px 62px 72px 78px 78px 52px minmax(110px, 1.6fr) 78px 84px; align-items: center; min-width: 970px; min-height: 38px; border-bottom: 1px solid rgba(109, 134, 198, 0.07); color: #9aabd0; font-size: 10px; }
+.rank-row { display: grid; grid-template-columns: 36px minmax(118px, 0.55fr) 38px 82px 52px 62px 66px 66px 46px minmax(85px, 1.6fr) 72px 76px; align-items: center; min-width: 800px; min-height: 38px; border-bottom: 1px solid rgba(109, 134, 198, 0.07); color: #9aabd0; font-size: 10px; }
 .rank-row.table-head { min-height: 30px; color: #5f7091; font-size: 8.5px; }
 .rank-row > span { padding: 0 5px; min-width: 0; white-space: nowrap; }
 .rank-index { color: #536384; font-family: var(--mono); }
