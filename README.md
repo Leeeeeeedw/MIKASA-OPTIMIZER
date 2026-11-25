@@ -12,12 +12,19 @@ GitHub 订阅上传、历史复测与浅色/夜间主题。
 ## 界面预览
 
 <p align="center">
-  <img src="docs/screenshots/01-overview.png" alt="总览首页" width="100%" />
+  <img src="docs/screenshots/01-overview.png" alt="总览首页" width="32%" />
+  <img src="docs/screenshots/02-sources.png" alt="IP 来源管理" width="32%" />
+  <img src="docs/screenshots/03-scan.png" alt="扫描任务" width="32%" />
 </p>
 <p align="center">
-  <img src="docs/screenshots/03-scan.png" alt="扫描任务" width="32%" />
   <img src="docs/screenshots/04-rankings.png" alt="地区排名" width="32%" />
-  <img src="docs/screenshots/10-github-upload.png" alt="GitHub 上传筛选" width="32%" />
+  <img src="docs/screenshots/05-export.png" alt="结果导出" width="32%" />
+  <img src="docs/screenshots/06-github.png" alt="GitHub 上传" width="32%" />
+</p>
+<p align="center">
+  <img src="docs/screenshots/07-history.png" alt="历史记录" width="32%" />
+  <img src="docs/screenshots/08-settings.png" alt="设置" width="32%" />
+  <img src="docs/screenshots/09-about.png" alt="关于软件" width="32%" />
 </p>
 
 ## 已实现功能
