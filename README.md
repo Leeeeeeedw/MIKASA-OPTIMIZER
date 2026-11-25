@@ -47,9 +47,9 @@ GitHub 订阅上传、历史复测与浅色/夜间主题。
 
 前往 [Releases](https://github.com/guyue1337/MIKASA-OPTIMIZER/releases/tag/v1.0.5) 下载：
 
-- `三笠优选_1.0.5_x64-setup.exe`：NSIS 安装版，安装到当前用户目录，不需要管理员权限。
-- `三笠优选_1.0.5_x64-portable.zip`：便携版，解压后双击 `三笠优选.exe`。
-- `三笠优选_1.0.5_source.zip`：源码包，不包含打赏收款码原图、解密密钥、数据库和构建产物。
+- `MIKASA_OPTIMIZER_1.0.5_x64_setup.exe`：NSIS 安装版，安装到当前用户目录，不需要管理员权限。
+- `MIKASA_OPTIMIZER_1.0.5_x64_portable.zip`：便携版，解压后双击 `三笠优选.exe`。
+- `MIKASA_OPTIMIZER_1.0.5_source.zip`：源码包，不包含打赏收款码原图、解密密钥、数据库和构建产物。
 
 系统要求：
 
