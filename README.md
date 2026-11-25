@@ -6,7 +6,6 @@ Windows 10/11 x64 桌面端 Cloudflare 多地区 IP 优选工具。
 GitHub 订阅上传、历史复测与浅色/夜间主题。
 
 > 当前版本：`v1.0.6`  
-> 作者：`guyue1337`  
 > 项目性质：source-available，非商业授权，禁止商用。
 
 ## 界面预览
@@ -46,7 +45,7 @@ GitHub 订阅上传、历史复测与浅色/夜间主题。
 
 ## 下载与安装
 
-前往 [Releases](https://github.com/guyue1337/MIKASA-OPTIMIZER/releases/tag/v1.0.6) 下载：
+前往 [Releases](../../releases/latest) 下载：
 
 - `MIKASA_OPTIMIZER_1.0.6_x64_setup.exe`：NSIS 安装版，安装到当前用户目录，不需要管理员权限。
 - `MIKASA_OPTIMIZER_1.0.6_x64_portable.zip`：便携版，解压后双击 `三笠优选.exe`。
@@ -142,24 +141,18 @@ Cloudflare Anycast 受本地网络、时段和线路影响，软件只展示真�
 - 历史记录保存在本地 SQLite，不上传服务器。
 - GitHub 上传只上传你确认的测速结果文件。
 
-## 许可证
+## 版权说明
 
-本项目采用 **PolyForm Noncommercial License 1.0.0**：
+本项目采用 **CC BY-NC-ND 4.0** 协议，这意味着：
 
-- 允许任何非商业用途，包括使用、修改和分发。
-- 商业用途必须事先取得作者 `guyue1337` 的书面授权。
-- 转载源码或二进制必须保留许可证、作者署名和项目名称。
-- 发布文章、视频、直播、教程或截图演示时，必须显著注明：
-  `MIKASA OPTIMIZER · 作者 guyue1337 · https://github.com/guyue1337/MIKASA-OPTIMIZER`
-- 禁止移除品牌、作者署名和许可证声明。
+- ✅ 可以下载、使用、分享，但必须注明项目名称和来源。
+- ❌ 禁止商业使用。
+- ❌ 禁止二次开发或修改后发布。
 
-完整条款见 [LICENSE](LICENSE)，署名与品牌说明见 [NOTICE.md](NOTICE.md)。
-PolyForm Noncommercial 是软件专用的标准化非商业许可证，但不属于 OSI 开源许可证，
-因此 GitHub 许可证识别可能显示为 `Other`。第三方依赖许可见
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+完整条款见 [LICENSE](LICENSE)，品牌与署名说明见 [NOTICE.md](NOTICE.md)。
 
-## 作者
+## 鸣谢
 
-`guyue1337`
+感谢使用 MIKASA OPTIMIZER。
 
 如果这个工具帮到了你，欢迎在软件内「打赏作者」请作者喝杯奶茶。
