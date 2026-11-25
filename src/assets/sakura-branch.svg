@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="120" viewBox="0 0 220 120" fill="none">
+  <defs>
+    <linearGradient id="branch" x1="210" y1="8" x2="8" y2="112" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4B3B60"/>
+      <stop offset="0.55" stop-color="#352C4A"/>
+      <stop offset="1" stop-color="#241E36"/>
+    </linearGradient>
+    <radialGradient id="petal" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(144 35) rotate(90) scale(18)">
+      <stop stop-color="#FFE3EF"/>
+      <stop offset="0.65" stop-color="#F3B9D2"/>
+      <stop offset="1" stop-color="#D889AE"/>
+    </radialGradient>
+  </defs>
+
+  <!-- branches -->
+  <path d="M218 3C188 12 169 26 147 43C127 59 112 72 86 83C62 94 32 96 2 108" stroke="url(#branch)" stroke-width="5" stroke-linecap="round"/>
+  <path d="M184 17C178 32 173 48 166 64" stroke="#3E3154" stroke-width="3.4" stroke-linecap="round"/>
+  <path d="M147 43C137 35 123 29 106 27" stroke="#3E3154" stroke-width="2.8" stroke-linecap="round"/>
+  <path d="M112 71C118 83 119 95 115 108" stroke="#3E3154" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M82 84C70 76 55 72 38 73" stroke="#3E3154" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M168 63C181 65 194 64 207 58" stroke="#3E3154" stroke-width="2.4" stroke-linecap="round"/>
+
+  <!-- blossom clusters -->
+  <g opacity="0.95">
+    <g transform="translate(145 34)">
+      <circle cx="0" cy="-7" r="5.2" fill="url(#petal)"/>
+      <circle cx="7" cy="-2" r="5.2" fill="url(#petal)"/>
+      <circle cx="5" cy="6" r="5.2" fill="url(#petal)"/>
+      <circle cx="-5" cy="6" r="5.2" fill="url(#petal)"/>
+      <circle cx="-7" cy="-2" r="5.2" fill="url(#petal)"/>
+      <circle cx="0" cy="0" r="2.3" fill="#FFE3A8"/>
+    </g>
+    <g transform="translate(107 26) scale(.86)">
+      <circle cx="0" cy="-7" r="5.2" fill="url(#petal)"/>
+      <circle cx="7" cy="-2" r="5.2" fill="url(#petal)"/>
+      <circle cx="5" cy="6" r="5.2" fill="url(#petal)"/>
+      <circle cx="-5" cy="6" r="5.2" fill="url(#petal)"/>
+      <circle cx="-7" cy="-2" r="5.2" fill="url(#petal)"/>
+      <circle cx="0" cy="0" r="2.3" fill="#FFE3A8"/>
+    </g>
+    <g transform="translate(39 74) scale(.72)">
+      <circle cx="0" cy="-7" r="5.2" fill="url(#petal)"/>
+      <circle cx="7" cy="-2" r="5.2" fill="url(#petal)"/>
+      <circle cx="5" cy="6" r="5.2" fill="url(#petal)"/>
+      <circle cx="-5" cy="6" r="5.2" fill="url(#petal)"/>
+      <circle cx="-7" cy="-2" r="5.2" fill="url(#petal)"/>
+      <circle cx="0" cy="0" r="2.3" fill="#FFE3A8"/>
+    </g>
+    <g transform="translate(114 106) scale(.62)">
+      <circle cx="0" cy="-7" r="5.2" fill="url(#petal)"/>
+      <circle cx="7" cy="-2" r="5.2" fill="url(#petal)"/>
+      <circle cx="5" cy="6" r="5.2" fill="url(#petal)"/>
+      <circle cx="-5" cy="6" r="5.2" fill="url(#petal)"/>
+      <circle cx="-7" cy="-2" r="5.2" fill="url(#petal)"/>
+      <circle cx="0" cy="0" r="2.3" fill="#FFE3A8"/>
+    </g>
+  </g>
+
+  <!-- loose petals -->
+  <path d="M127 15C130 11 136 10 138 14C140 18 136 22 131 22C128 22 126 18 127 15Z" fill="#F3B9D2" opacity="0.75"/>
+  <path d="M66 55C70 51 76 51 78 55C80 59 75 63 70 62C67 61 65 58 66 55Z" fill="#E9A8C7" opacity="0.65"/>
+  <path d="M185 83C188 79 194 79 196 83C198 87 193 90 189 89C186 88 184 86 185 83Z" fill="#F6C8DB" opacity="0.6"/>
+</svg>

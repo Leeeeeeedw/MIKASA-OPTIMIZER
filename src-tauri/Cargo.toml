@@ -1,0 +1,43 @@
+[package]
+name = "mikasa-optimizer"
+version = "1.0.5"
+description = "三笠优选 - Cloudflare 多地区 IP 优选工具"
+authors = ["Mikasa Optimizer"]
+edition = "2021"
+rust-version = "1.77.2"
+default-run = "mikasa-optimizer"
+
+[lib]
+name = "mikasa_optimizer_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync", "net", "fs"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream", "gzip", "brotli", "charset", "http2"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+rand = "0.8"
+base64 = "0.22"
+aes-gcm = "0.10"
+ipnet = "2"
+thiserror = "2"
+keyring = { version = "3", default-features = false, features = ["windows-native"] }
+futures-util = "0.3"
+url = "2"
+regex = "1"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

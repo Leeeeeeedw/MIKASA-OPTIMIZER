@@ -1,0 +1,65 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "三笠优选",
+  "version": "1.0.5",
+  "identifier": "com.mikasa.optimizer",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "三笠优选 MIKASA OPTIMIZER",
+        "width": 1440,
+        "height": 940,
+        "minWidth": 1180,
+        "minHeight": 720,
+        "decorations": false,
+        "transparent": false,
+        "backgroundColor": "#050814",
+        "center": true,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "msi"],
+    "resources": {
+      "icons/icon.ico": "app-icon.ico"
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "publisher": "Mikasa Optimizer",
+    "copyright": "Copyright © 2026 Mikasa Optimizer",
+    "category": "Utility",
+    "shortDescription": "Cloudflare 多地区 IP 优选工具",
+    "longDescription": "三笠优选是一款 Windows 本地 Cloudflare IP 优选工具，支持多种候选来源、真实延迟与下载测速、七地区独立排名、TXT 导出和 GitHub 上传。",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false,
+        "languages": ["SimpChinese"],
+        "installerHooks": "windows/installer-hooks.nsh",
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico"
+      },
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      }
+    }
+  }
+}
