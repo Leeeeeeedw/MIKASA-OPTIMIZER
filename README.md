@@ -5,7 +5,7 @@ Windows 10/11 x64 桌面端 Cloudflare 多地区 IP 优选工具。
 真实 TCP、HTTPS、colo、延迟与下载测速，支持七地区独立筛选、结果导出、
 GitHub 订阅上传、历史复测与浅色/夜间主题。
 
-> 当前版本：`v1.0.5`  
+> 当前版本：`v1.0.6`  
 > 作者：`guyue1337`  
 > 项目性质：source-available，非商业授权，禁止商用。
 
@@ -30,6 +30,7 @@ GitHub 订阅上传、历史复测与浅色/夜间主题。
 ## 已实现功能
 
 - 九页完整桌面界面：总览、IP 来源、扫描任务、地区排名、结果导出、GitHub 上传、历史记录、设置、关于软件。
+- 默认窗口 `1280×800`、最小 `1200×750`；总览页一屏展示完整信息，缩放窗口不挤压数字和表格列。
 - 七个首选地区：香港、台湾、日本、新加坡、韩国、法国、美国；全球其他地区达标节点也会保留并显示实际地区。
 - 真实四阶段测速：TCP 连通性 → HTTPS/colo 验证 → 多轮延迟 → 实际下载速度。
 - 节点名称按真实 colo 显示：香港、台湾、新加坡只显示自身；日本显示东京/大阪；美国显示洛杉矶/圣何塞等城市。
@@ -45,10 +46,10 @@ GitHub 订阅上传、历史复测与浅色/夜间主题。
 
 ## 下载与安装
 
-前往 [Releases](https://github.com/guyue1337/MIKASA-OPTIMIZER/releases/tag/v1.0.5) 下载：
+前往 [Releases](https://github.com/guyue1337/MIKASA-OPTIMIZER/releases/tag/v1.0.6) 下载：
 
-- `MIKASA_OPTIMIZER_1.0.5_x64_setup.exe`：NSIS 安装版，安装到当前用户目录，不需要管理员权限。
-- `MIKASA_OPTIMIZER_1.0.5_x64_portable.zip`：便携版，解压后双击 `三笠优选.exe`。
+- `MIKASA_OPTIMIZER_1.0.6_x64_setup.exe`：NSIS 安装版，安装到当前用户目录，不需要管理员权限。
+- `MIKASA_OPTIMIZER_1.0.6_x64_portable.zip`：便携版，解压后双击 `三笠优选.exe`。
 
 系统要求：
 
