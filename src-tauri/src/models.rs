@@ -338,12 +338,17 @@ fn default_true_setting() -> bool {
     true
 }
 
+fn default_download_top_per_region() -> usize {
+    30
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AppSettings {
     pub default_port: u16,
     pub concurrency: usize,
     pub per_region_top: usize,
+    pub download_top_per_region: usize,
     pub latency_limit_ms: f64,
     pub speed_limit_mb_s: f64,
     pub download_seconds: u64,
@@ -370,6 +375,7 @@ pub struct AppSettings {
     pub max_candidates: usize,
     pub export_dir: String,
     pub log_level: String,
+    pub ui_scale: String,
     pub proxy: String,
     pub fofa_query_template: String,
     pub fofa_email: String,
@@ -386,6 +392,7 @@ impl Default for AppSettings {
             default_port: 443,
             concurrency: 64,
             per_region_top: 20,
+            download_top_per_region: 30,
             latency_limit_ms: 1500.0,
             speed_limit_mb_s: 1.0,
             download_seconds: 10,
@@ -405,9 +412,10 @@ impl Default for AppSettings {
             backup_speed_source: default_backup_speed_source(),
             auto_switch_speed_source: true,
             custom_speed_url: String::new(),
-            max_candidates: 1200,
+            max_candidates: 1024,
             export_dir: String::new(),
             log_level: "info".to_string(),
+            ui_scale: "auto".to_string(),
             proxy: String::new(),
             fofa_query_template:
                 "country=\"{country}\" && port=\"{port}\" && org=\"Cloudflare, Inc.\"".to_string(),
@@ -480,6 +488,8 @@ pub struct ImportResult {
 pub struct ScanRequest {
     pub regions: Vec<String>,
     pub per_region_top: usize,
+    #[serde(default = "default_download_top_per_region")]
+    pub download_top_per_region: usize,
     pub port: u16,
     pub concurrency: usize,
     pub latency_limit_ms: f64,

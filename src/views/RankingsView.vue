@@ -65,6 +65,18 @@ function score(row: ScanResult) {
 }
 
 const passedCount = computed(() => filtered.value.filter((row) => row.status === 'passed').length)
+const sortLabel = computed(() => {
+  if (sortMode.value === 'latency') return '延迟优先'
+  if (sortMode.value === 'speed') return '速度优先'
+  if (sortMode.value === 'loss') return '丢包率优先'
+  return '综合评分'
+})
+const sortHint = computed(() => {
+  if (sortMode.value === 'latency') return '按 TCP 平均延迟从低到高'
+  if (sortMode.value === 'speed') return '按真实下载速度从高到低'
+  if (sortMode.value === 'loss') return '按丢包率从低到高'
+  return '下载速度 60% + TCP 延迟 30% + 丢包率 10%'
+})
 
 async function load() {
   loading.value = true
@@ -241,9 +253,12 @@ watch(
       </div>
 
       <div class="rank-caption">
-        <span>{{ regionLabel }} · Top {{ filtered.length }} · 正式 {{ passedCount }} / 参考 {{ filtered.length - passedCount }}</span>
-        <span class="caption-note">排序：{{ sortMode === 'score' ? '综合质量（速度 60% / TCP 延迟 30% / 丢包 10%）' : sortMode === 'latency' ? 'TCP 平均延迟升序' : sortMode === 'speed' ? '下载速度降序' : '丢包率升序' }} · 延迟为 TCP 握手 RTT（对齐 v2rayN）；1.0.3 之前的历史结果为旧 HTTPS 口径，可复测刷新 · 国家/城市由真实 CF-RAY colo 推导，不按 IP 段猜测 · 未达标 IP 仅展示，不会进入正式导出</span>
+        <span class="caption-main">{{ regionLabel }} · Top {{ filtered.length }} · 正式 {{ passedCount }} / 参考 {{ filtered.length - passedCount }}</span>
+        <span class="sort-badge">
+          <i></i>当前排序 · <strong>{{ sortLabel }}</strong><em>{{ sortHint }}</em>
+        </span>
       </div>
+      <div class="rank-note">正式通过的结果始终排在参考结果之前；延迟为 TCP 握手 RTT（对齐 v2rayN），国家/城市由真实 CF-RAY colo 推导，不按 IP 段猜测；未达标 IP 仅展示，不进入正式导出。</div>
 
       <div class="table-wrap">
         <div class="rank-row table-head">
@@ -251,7 +266,7 @@ watch(
         </div>
         <div v-for="(row, index) in filtered" :key="row.id" class="rank-row">
           <span class="rank-index" :class="{ top: index < 3 }">{{ String(index + 1).padStart(2, '0') }}</span>
-          <span class="ip mono">{{ row.ip }}</span>
+          <span class="ip mono" :title="row.ip">{{ row.ip }}</span>
           <span class="mono">{{ row.port }}</span>
           <span><span class="region-tag" :title="row.regionName">{{ row.regionName }}</span></span>
           <span class="colo">{{ row.colo || '—' }}</span>
@@ -345,15 +360,20 @@ watch(
 .search-box input { width: 120px; border: 0; outline: 0; background: transparent; color: #c8d5f1; font-size: 10px; }
 .sort-select { display: flex; align-items: center; gap: 5px; height: 29px; padding: 0 7px; border: 1px solid var(--line); border-radius: 6px; color: #7b8cae; }
 .sort-select select { border: 0; outline: 0; background: transparent; color: #b5c5e8; font-size: 10px; }
-.rank-caption { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; margin: 14px 1px 7px; color: #9eafd1; font-size: 10.5px; }
-.caption-note { color: #5e6d8d; font-size: 9px; text-align: right; }
+.rank-caption { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin: 14px 1px 5px; color: #9eafd1; font-size: 10.5px; }
+.caption-main { color: #9eafd1; }
+.sort-badge { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 5px; padding: 4px 9px; border: 1px solid rgba(108, 139, 255, 0.26); border-radius: 6px; background: rgba(70, 99, 213, 0.12); color: #a8baea; font-size: 9.5px; }
+.sort-badge i { width: 5px; height: 5px; border-radius: 50%; background: #7e9dff; box-shadow: 0 0 6px rgba(126, 157, 255, 0.7); }
+.sort-badge strong { color: #dbe6ff; font-weight: 600; }
+.sort-badge em { color: #8fa3cd; font-style: normal; }
+.rank-note { margin: 0 1px 8px; color: #5e6d8d; font-size: 9px; line-height: 1.5; }
 .table-wrap { overflow-x: auto; border-top: 1px solid rgba(108, 133, 255, 0.1); }
-.rank-row { display: grid; grid-template-columns: 36px minmax(118px, 0.55fr) 38px 82px 52px 62px 66px 66px 46px minmax(85px, 1.6fr) 72px 76px; align-items: center; min-width: 800px; min-height: 38px; border-bottom: 1px solid rgba(109, 134, 198, 0.07); color: #9aabd0; font-size: 10px; }
+.rank-row { display: grid; grid-template-columns: 32px minmax(240px, 1.25fr) 40px 96px 44px 62px 62px 62px 44px minmax(70px, 0.8fr) 66px 62px; align-items: center; min-width: 880px; min-height: 38px; border-bottom: 1px solid rgba(109, 134, 198, 0.07); color: #9aabd0; font-size: 10px; }
 .rank-row.table-head { min-height: 30px; color: #5f7091; font-size: 8.5px; }
 .rank-row > span { padding: 0 5px; min-width: 0; white-space: nowrap; }
 .rank-index { color: #536384; font-family: var(--mono); }
 .rank-index.top { color: #e0b56d; font-weight: 700; }
-.ip { color: #dfe8ff; font-size: 10.5px; }
+.ip { color: #dfe8ff; font-size: 9.5px; overflow: hidden; text-overflow: ellipsis; }
 .colo { color: #94a8dc; font-family: var(--mono); }
 .latency { color: #6fc0f5; }
 .speed { color: #73dda5; font-weight: 600; }

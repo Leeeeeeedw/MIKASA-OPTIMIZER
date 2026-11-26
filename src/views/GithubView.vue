@@ -40,6 +40,7 @@ const uploadOpen = ref(false)
 const uploadRows = ref<ScanResult[]>([])
 const loadingRows = ref(false)
 const uploadMode = ref<'all' | 'split'>('all')
+const uploadWriteMode = ref<'overwrite' | 'merge'>('overwrite')
 const uploadFormat = ref<'txt' | 'csv'>('txt')
 const minSpeed = ref(0)
 const maxLatency = ref(0)
@@ -368,6 +369,7 @@ async function performUpload() {
       scanId: currentScanId() || undefined,
       options: uploadOptions.value,
       splitRegions: uploadMode.value === 'split',
+      writeMode: uploadWriteMode.value,
     })
     uploadOpen.value = false
     message.success(outcome.value.verified ? '上传完成，已通过 commit 校验' : '上传完成，请在 GitHub 检查结果')
@@ -531,6 +533,23 @@ onMounted(load)
               </section>
 
               <section class="dialog-section">
+                <div class="section-title"><RefreshCw :size="14" /><span>写入方式</span><em>追加模式会先读取远端文件</em></div>
+                <div class="mode-grid">
+                  <button :class="{ active: uploadWriteMode === 'overwrite' }" @click="uploadWriteMode = 'overwrite'">
+                    <FileCode2 :size="17" />
+                    <span><strong>覆盖全部内容</strong><em>用本次筛选结果替换远端文件</em></span>
+                    <Check v-if="uploadWriteMode === 'overwrite'" :size="13" class="choice-check" />
+                  </button>
+                  <button :class="{ active: uploadWriteMode === 'merge' }" @click="uploadWriteMode = 'merge'">
+                    <RefreshCw :size="17" />
+                    <span><strong>追加更新 IP</strong><em>保留已有节点，同 IP:端口 更新数据</em></span>
+                    <Check v-if="uploadWriteMode === 'merge'" :size="13" class="choice-check" />
+                  </button>
+                </div>
+                <p class="write-mode-hint">追加模式按 IP:端口 去重：远端已有节点保留，本次同节点覆盖速度、延迟和城市信息，新节点追加到末尾。</p>
+              </section>
+
+              <section class="dialog-section">
                 <div class="section-title"><FileCode2 :size="14" /><span>文件格式</span><em>脚本直链使用 .txt 最稳</em></div>
                 <div class="format-grid">
                   <button :class="{ active: uploadFormat === 'txt' }" @click="uploadFormat = 'txt'">
@@ -640,7 +659,7 @@ onMounted(load)
               <div>
                 <button class="btn-ghost" :disabled="busy" @click="closeUpload">取消</button>
                 <button class="btn-primary" :disabled="!canConfirm" @click="performUpload">
-                  <UploadCloud :size="14" />{{ busy ? '上传中…' : `上传 ${expectedFiles.length} 个文件` }}
+                  <UploadCloud :size="14" />{{ busy ? '上传中…' : `${uploadWriteMode === 'merge' ? '追加' : '覆盖'}上传 ${expectedFiles.length} 个文件` }}
                 </button>
               </div>
             </footer>
@@ -757,6 +776,7 @@ onMounted(load)
 .mode-grid strong, .format-grid strong { font-size: 10px; font-weight: 600; white-space: nowrap; }
 .mode-grid em, .format-grid em { color: var(--text-3); font-size: 8px; font-style: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .choice-check { margin-left: auto; flex-shrink: 0; color: #7ea4ff; }
+.write-mode-hint { margin: 8px 0 0; color: var(--text-3); font-size: 8.5px; line-height: 1.6; }
 .filter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .filter-block { padding: 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-solid); }
 .filter-title { display: block; margin-bottom: 8px; color: var(--text-2); font-size: 9px; }

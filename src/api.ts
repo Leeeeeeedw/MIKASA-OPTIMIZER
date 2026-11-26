@@ -101,8 +101,15 @@ export const api = {
     invoke<GithubStatus>('save_github_config', params),
   clearGithubToken: () => invoke<void>('clear_github_token'),
   githubCheck: (repo: string, branch?: string) => invoke<Record<string, unknown>>('github_check', { repo, branch }),
-  githubUpload: (params: { repo: string; branch?: string; remoteDir?: string; scanId?: string; options?: ExportOptions; splitRegions?: boolean }) =>
-    invoke<GithubUploadOutcome>('github_upload', params),
+  githubUpload: (params: {
+    repo: string
+    branch?: string
+    remoteDir?: string
+    scanId?: string
+    options?: ExportOptions
+    splitRegions?: boolean
+    writeMode?: 'overwrite' | 'merge'
+  }) => invoke<GithubUploadOutcome>('github_upload', params),
   getGithubHistory: () => invoke<Array<Record<string, unknown>>>('get_github_history'),
   getDonationQr: (kind: 'wechat' | 'alipay') => invoke<string>('get_donation_qr', { kind }),
   openExternalUrl: (url: string) => invoke<void>('open_external_url', { url }),

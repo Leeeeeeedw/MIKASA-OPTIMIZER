@@ -2,6 +2,7 @@ use crate::export::ExportFile;
 use crate::models::GithubUploadOutcome;
 use base64::Engine;
 use serde_json::{json, Value};
+use std::collections::HashMap;
 use std::time::Duration;
 
 const API: &str = "https://api.github.com";
@@ -106,6 +107,109 @@ async fn get_json(client: &reqwest::Client, token: &str, url: &str) -> Result<(u
     Ok((status, value))
 }
 
+async fn read_remote_file(
+    client: &reqwest::Client,
+    token: &str,
+    owner: &str,
+    repo: &str,
+    path: &str,
+    branch: &str,
+) -> Result<Option<String>, String> {
+    let mut url = url::Url::parse(&contents_url(owner, repo, path)?)
+        .map_err(|e| format!("创建 GitHub Contents URL 失败: {e}"))?;
+    url.query_pairs_mut().append_pair("ref", branch);
+    let (status, body) = get_json(client, token, url.as_str()).await?;
+    if status == 404 {
+        return Ok(None);
+    }
+    if status != 200 {
+        return Err(format!("读取远端文件 {path} 失败：HTTP {status}"));
+    }
+    if body.get("encoding").and_then(|value| value.as_str()) == Some("none") {
+        return Err(format!("远端文件 {path} 超过 1 MB，无法使用追加更新"));
+    }
+    let encoded = body
+        .get("content")
+        .and_then(|value| value.as_str())
+        .unwrap_or_default()
+        .chars()
+        .filter(|ch| *ch != '\n' && *ch != '\r')
+        .collect::<String>();
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(encoded)
+        .map_err(|e| format!("解析远端文件 {path} 失败: {e}"))?;
+    let text = String::from_utf8(bytes)
+        .map_err(|e| format!("远端文件 {path} 不是 UTF-8 文本: {e}"))?;
+    Ok(Some(text))
+}
+
+fn subscription_key(line: &str, csv: bool) -> Option<String> {
+    if csv {
+        let mut parts = line.splitn(3, ',');
+        let ip = parts.next()?.trim().trim_matches('"').trim();
+        let port = parts.next()?.trim().trim_matches('"').trim();
+        if ip.is_empty() || port.is_empty() {
+            return None;
+        }
+        Some(format!("{ip}:{port}"))
+    } else {
+        let key = line.split('#').next().unwrap_or("").trim();
+        if key.is_empty() {
+            None
+        } else {
+            Some(key.to_string())
+        }
+    }
+}
+
+/// 追加更新：保留远端已有节点，本次同 IP:端口 的记录覆盖为最新测速数据，
+/// 新节点追加到末尾。TXT 与 CSV 都按第一列 IP + 端口去重。
+fn merge_subscription(existing: &str, incoming: &str) -> String {
+    let incoming_clean = incoming.trim_start_matches('\u{feff}');
+    let csv_header = incoming_clean
+        .lines()
+        .next()
+        .filter(|line| line.trim_start().starts_with("IP,"));
+    let csv = csv_header.is_some();
+    let mut order: Vec<String> = Vec::new();
+    let mut lines: HashMap<String, String> = HashMap::new();
+
+    let mut collect = |text: &str| {
+        for raw in text.lines() {
+            let line = raw
+                .trim_start_matches('\u{feff}')
+                .trim_end_matches('\r');
+            if line.trim().is_empty() {
+                continue;
+            }
+            if csv && line.trim_start().starts_with("IP,") {
+                continue;
+            }
+            if let Some(key) = subscription_key(line, csv) {
+                if !lines.contains_key(&key) {
+                    order.push(key.clone());
+                }
+                lines.insert(key, line.to_string());
+            }
+        }
+    };
+    collect(existing);
+    collect(incoming_clean);
+
+    let mut merged = String::new();
+    if let Some(header) = csv_header {
+        merged.push_str(header.trim_end_matches('\r'));
+        merged.push('\n');
+    }
+    for key in order {
+        if let Some(line) = lines.get(&key) {
+            merged.push_str(line);
+            merged.push('\n');
+        }
+    }
+    merged
+}
+
 pub async fn check_repository(repo_input: &str, branch_input: &str, token: &str) -> Result<Value, String> {
     if token.trim().is_empty() {
         return Err("请先保存 GitHub Token".to_string());
@@ -146,8 +250,9 @@ pub async fn upload_results(
     branch_input: &str,
     remote_dir: &str,
     token: &str,
-    files: &[ExportFile],
+    mut files: Vec<ExportFile>,
     scan_id: &str,
+    merge_existing: bool,
 ) -> Result<GithubUploadOutcome, String> {
     if token.trim().is_empty() {
         return Err("请先保存 GitHub Token".to_string());
@@ -230,6 +335,16 @@ pub async fn upload_results(
                 .to_string(),
         )
     };
+
+    if merge_existing {
+        for file in files.iter_mut() {
+            let path = remote_path(remote_dir, &file.name);
+            if let Some(existing) = read_remote_file(&client, token, &owner, &repo, &path, &branch).await? {
+                file.content = merge_subscription(&existing, &file.content);
+            }
+        }
+    }
+
     let mut uploaded_names = Vec::new();
 
     // GitHub 的 Git Data API 在完全空的仓库上会统一返回 409。
@@ -434,4 +549,49 @@ pub async fn upload_results(
         commit_sha: new_commit_sha,
         verified,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::merge_subscription;
+
+    #[test]
+    fn merge_txt_keeps_existing_updates_same_endpoint_and_appends_new() {
+        let existing = "\
+1.1.1.1:443#三笠优选 | 香港 | 下载 5.00MB/s
+2606:4700::1:443#三笠优选 | 日本东京 | 下载 6.00MB/s
+";
+        let incoming = "\
+2606:4700::1:443#三笠优选 | 日本东京 | 下载 9.00MB/s
+2.2.2.2:2053#三笠优选 | 美国洛杉矶 | 下载 8.00MB/s
+";
+        let merged = merge_subscription(existing, incoming);
+        assert_eq!(
+            merged,
+            "\
+1.1.1.1:443#三笠优选 | 香港 | 下载 5.00MB/s
+2606:4700::1:443#三笠优选 | 日本东京 | 下载 9.00MB/s
+2.2.2.2:2053#三笠优选 | 美国洛杉矶 | 下载 8.00MB/s
+"
+        );
+    }
+
+    #[test]
+    fn merge_csv_keeps_one_header_and_updates_duplicate_port() {
+        let existing = "\
+IP,端口,国家/城市,colo,平均延迟(ms),下载速度(MB/s),下载速度(Mbps),丢包率(%),稳定性(%),来源,测试时间
+1.1.1.1,443,香港,HKG,30.0,5.00,41.9,0.0,100.0,CM,2026-01-01 00:00:00
+";
+        let incoming = "\
+IP,端口,国家/城市,colo,平均延迟(ms),下载速度(MB/s),下载速度(Mbps),丢包率(%),稳定性(%),来源,测试时间
+1.1.1.1,443,香港,HKG,18.0,9.00,75.5,0.0,100.0,CM,2026-02-01 00:00:00
+2.2.2.2,2053,日本东京,NRT,45.0,7.00,58.7,0.0,100.0,CM,2026-02-01 00:00:00
+";
+        let merged = merge_subscription(existing, incoming);
+        let lines: Vec<&str> = merged.lines().collect();
+        assert_eq!(lines.len(), 3);
+        assert!(lines[0].starts_with("IP,端口"));
+        assert!(lines[1].contains(",18.0,9.00,"));
+        assert!(lines[2].starts_with("2.2.2.2,2053,"));
+    }
 }

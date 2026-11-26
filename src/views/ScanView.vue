@@ -130,7 +130,7 @@ async function refresh() {
         <div><span>正式保留</span><strong class="green">{{ scan?.finalSelected ?? scan?.finalCount ?? 0 }}</strong></div>
       </div>
       <p class="stage-note">
-        延迟上限只用于最终筛选：超过上限的 IP 仍会完成下载测速，但只作参考展示，不进入正式导出。
+        每个地区默认只把 TCP 延迟最快的前 30 个候选送进真实下载测速，可在总览或设置中改为前 20 / 前 50 / 前 100 / 全部；延迟上限只用于最终筛选，超过上限的 IP 仅作参考展示，不进入正式导出。
       </p>
     </section>
 

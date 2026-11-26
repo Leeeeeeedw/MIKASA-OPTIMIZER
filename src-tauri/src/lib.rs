@@ -31,7 +31,86 @@ pub struct AppState {
     pub running_scan: Arc<Mutex<Option<String>>>,
     pub last_progress: Arc<Mutex<Option<ScanProgress>>>,
     pub cm_fetching: Arc<AtomicBool>,
+    pub ui_zoom: Arc<Mutex<f64>>,
     pub db_path: PathBuf,
+}
+
+fn monitor_logical_size(window: &tauri::WebviewWindow) -> Option<(f64, f64)> {
+    if let Ok(Some(monitor)) = window.current_monitor() {
+        let scale_factor = monitor.scale_factor().max(1.0);
+        return Some((
+            monitor.size().width as f64 / scale_factor,
+            monitor.size().height as f64 / scale_factor,
+        ));
+    }
+    let size = window.inner_size().ok()?;
+    let scale_factor = window.scale_factor().ok()?.max(1.0);
+    Some((
+        size.width as f64 / scale_factor,
+        size.height as f64 / scale_factor,
+    ))
+}
+
+fn desired_ui_scale(window: &tauri::WebviewWindow, state: &AppState) -> Result<f64, String> {
+    let setting = state
+        .settings
+        .lock()
+        .map(|settings| settings.ui_scale.clone())
+        .unwrap_or_else(|_| "auto".to_string());
+    let (logical_width, logical_height) = monitor_logical_size(window).unwrap_or((1920.0, 1080.0));
+    let auto = (logical_width / 1920.0)
+        .min(logical_height / 1080.0)
+        .clamp(1.0, 2.25);
+    let desired = if setting.trim().is_empty() || setting.eq_ignore_ascii_case("auto") {
+        auto
+    } else {
+        setting
+            .trim()
+            .parse::<f64>()
+            .map_err(|_| "界面缩放设置无效".to_string())?
+            .clamp(0.75, 2.5)
+    };
+    // 窗口必须仍能容纳 1360×860 的设计尺寸；2K/4K 自动放大窗口和 WebView 缩放，
+    // 而不是只放大字体导致布局溢出。
+    let fit = ((logical_width * 0.92) / 1360.0)
+        .min((logical_height * 0.90) / 860.0)
+        .max(1.0);
+    Ok(desired.min(fit).clamp(1.0, 2.5))
+}
+
+pub fn apply_ui_scale(
+    window: &tauri::WebviewWindow,
+    state: &AppState,
+    force: bool,
+) -> Result<(), String> {
+    let factor = desired_ui_scale(window, state)?;
+    let rounded = (factor * 20.0).round() / 20.0;
+    let mut last = state.ui_zoom.lock().map_err(|e| e.to_string())?;
+    let changed = (*last - rounded).abs() >= 0.001;
+    if !force && !changed {
+        return Ok(());
+    }
+    if force && changed {
+        if let Some((logical_width, logical_height)) = monitor_logical_size(window) {
+            let width = (1360.0 * rounded)
+                .min(logical_width * 0.92)
+                .max(1280.0);
+            let height = (860.0 * rounded)
+                .min(logical_height * 0.90)
+                .max(800.0);
+            let _ = window.set_min_size(Some(tauri::LogicalSize::new(
+                1280.0 * rounded,
+                800.0 * rounded,
+            )));
+            let _ = window.set_size(tauri::LogicalSize::new(width, height));
+            let _ = window.center();
+        }
+    }
+    window
+        .set_zoom(rounded)
+        .map_err(|e| format!("设置界面缩放失败: {e}"))?;
+    *last = rounded;
+    Ok(())
 }
 
 fn spawn_cm_refresher(app: tauri::AppHandle) {
@@ -152,6 +231,20 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .on_window_event(|window, event| {
+            let force = matches!(event, tauri::WindowEvent::ScaleFactorChanged { .. });
+            if matches!(
+                event,
+                tauri::WindowEvent::Resized(_) | tauri::WindowEvent::ScaleFactorChanged { .. }
+            ) {
+                if let (Some(state), Some(webview)) = (
+                    window.try_state::<AppState>(),
+                    window.app_handle().get_webview_window(window.label()),
+                ) {
+                    let _ = apply_ui_scale(&webview, &state, force);
+                }
+            }
+        })
         .setup(|app| {
             let data_dir = app
                 .path()
@@ -173,6 +266,7 @@ pub fn run() {
                 running_scan: Arc::new(Mutex::new(None)),
                 last_progress: Arc::new(Mutex::new(None)),
                 cm_fetching: Arc::new(AtomicBool::new(false)),
+                ui_zoom: Arc::new(Mutex::new(1.0)),
                 db_path,
             };
             app.manage(state);
@@ -180,17 +274,19 @@ pub fn run() {
                 if let Some(icon) = app.default_window_icon() {
                     let _ = window.set_icon(icon.clone());
                 }
-                // 默认给总览页足够空间，同时按当前显示器可用尺寸收敛，避免高 DPI 下超出屏幕。
-                if let Ok(Some(monitor)) = window.current_monitor() {
-                    let scale = monitor.scale_factor().max(1.0);
-                    let logical_width = monitor.size().width as f64 / scale;
-                    let logical_height = monitor.size().height as f64 / scale;
-                    let width = 1360.0_f64.min(logical_width * 0.92).max(1280.0);
-                    let height = 860.0_f64.min(logical_height * 0.90).max(800.0);
-                    let _ = window.set_size(tauri::LogicalSize::new(width, height));
-                    let _ = window.center();
+                if let Some(state) = app.try_state::<AppState>() {
+                    let _ = apply_ui_scale(&window, &state, true);
                 }
             }
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(Duration::from_millis(220)).await;
+                if let Some(window) = handle.get_webview_window("main") {
+                    if let Some(state) = handle.try_state::<AppState>() {
+                        let _ = apply_ui_scale(&window, &state, false);
+                    }
+                }
+            });
             spawn_url_refresher(app.handle().clone());
             spawn_cm_refresher(app.handle().clone());
             Ok(())

@@ -505,6 +505,16 @@ const coveredCount = computed(() => coverageRows.value.filter((row) => row.final
             <option :value="100">100 个</option>
           </select>
         </label>
+        <label class="param-item" title="每个地区只把 TCP 延迟最快的前 N 个候选送进下载测速；全部 = 不限制，速度会慢一些">
+          <span>每地区测速</span>
+          <select v-model.number="state.settings.downloadTopPerRegion" :disabled="scanActive">
+            <option :value="20">前 20</option>
+            <option :value="30">前 30</option>
+            <option :value="50">前 50</option>
+            <option :value="100">前 100</option>
+            <option :value="0">全部</option>
+          </select>
+        </label>
         <label class="param-item">
           <span>测试端口</span>
           <select v-model.number="state.settings.defaultPort" :disabled="scanActive">

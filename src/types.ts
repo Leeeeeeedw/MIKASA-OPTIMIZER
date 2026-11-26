@@ -9,6 +9,7 @@ export interface AppSettings {
   defaultPort: number
   concurrency: number
   perRegionTop: number
+  downloadTopPerRegion: number
   latencyLimitMs: number
   speedLimitMbS: number
   downloadSeconds: number
@@ -31,6 +32,7 @@ export interface AppSettings {
   maxCandidates: number
   exportDir: string
   logLevel: string
+  uiScale: string
   proxy: string
   fofaQueryTemplate: string
   fofaEmail: string
@@ -85,6 +87,7 @@ export interface ImportResult {
 export interface ScanRequest {
   regions: string[]
   perRegionTop: number
+  downloadTopPerRegion: number
   port: number
   concurrency: number
   latencyLimitMs: number

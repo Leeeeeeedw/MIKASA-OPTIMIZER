@@ -406,6 +406,7 @@ mod tests {
         let req = ScanRequest {
             regions: vec!["hk".into(), "us".into()],
             per_region_top: 20,
+            download_top_per_region: 30,
             port: 443,
             concurrency: 8,
             latency_limit_ms: 1500.0,

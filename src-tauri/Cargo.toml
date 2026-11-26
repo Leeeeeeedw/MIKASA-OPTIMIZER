@@ -1,6 +1,6 @@
 [package]
 name = "mikasa-optimizer"
-version = "1.0.8"
+version = "1.0.9"
 description = "三笠优选 - Cloudflare 多地区 IP 优选工具"
 authors = ["Mikasa Optimizer"]
 edition = "2021"

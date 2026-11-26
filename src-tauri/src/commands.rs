@@ -95,7 +95,11 @@ pub fn get_settings(state: State<'_, AppState>) -> Result<AppSettings, String> {
 }
 
 #[tauri::command]
-pub fn save_settings(state: State<'_, AppState>, settings: AppSettings) -> Result<AppSettings, String> {
+pub fn save_settings(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    settings: AppSettings,
+) -> Result<AppSettings, String> {
     if settings.default_port == 0 {
         return Err("默认端口必须在 1-65535 之间".to_string());
     }
@@ -104,6 +108,18 @@ pub fn save_settings(state: State<'_, AppState>, settings: AppSettings) -> Resul
     }
     if settings.per_region_top == 0 || settings.per_region_top > 500 {
         return Err("每地区保留数量必须在 1-500 之间".to_string());
+    }
+    if settings.download_top_per_region > 2000 {
+        return Err("每地区测速数量不能超过 2000（0 表示全部）".to_string());
+    }
+    let ui_scale = settings.ui_scale.trim().to_lowercase();
+    if ui_scale != "auto"
+        && !ui_scale
+            .parse::<f64>()
+            .map(|value| (0.75..=2.5).contains(&value))
+            .unwrap_or(false)
+    {
+        return Err("界面缩放必须为自动或 75%-250%".to_string());
     }
     if settings.download_seconds < 2 || settings.download_seconds > 120 {
         return Err("下载测速时长必须在 2-120 秒之间".to_string());
@@ -118,6 +134,7 @@ pub fn save_settings(state: State<'_, AppState>, settings: AppSettings) -> Resul
         return Err("延迟上限、速度下限与最低有效数据量必须为正数".to_string());
     }
     let mut normalized = settings;
+    normalized.ui_scale = ui_scale;
     normalized.download_url = normalized.download_url.trim().to_string();
     normalized.backup_download_url = normalized.backup_download_url.trim().to_string();
     if !normalized.download_url.starts_with("https://") {
@@ -127,6 +144,9 @@ pub fn save_settings(state: State<'_, AppState>, settings: AppSettings) -> Resul
         return Err("备用测速地址必须使用 HTTPS".to_string());
     }
     save_settings_inner(&state, &normalized)?;
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = crate::apply_ui_scale(&window, &state, true);
+    }
     Ok(normalized)
 }
 
@@ -1007,6 +1027,7 @@ pub async fn github_upload(
     scan_id: Option<String>,
     options: Option<ExportOptions>,
     split_regions: Option<bool>,
+    write_mode: Option<String>,
 ) -> Result<GithubUploadOutcome, String> {
     if repo.trim().is_empty() {
         return Err("请填写 GitHub 仓库地址".to_string());
@@ -1031,7 +1052,20 @@ pub async fn github_upload(
         export::build_github_files(&conn, &export_options, split_regions.unwrap_or(false))?
     };
     let scan_label = scan_id.unwrap_or_else(|| "latest".to_string());
-    let outcome = github::upload_results(&repo, &branch, &remote_dir, &token, &files, &scan_label).await;
+    let merge_existing = write_mode
+        .as_deref()
+        .map(|mode| mode.eq_ignore_ascii_case("merge"))
+        .unwrap_or(false);
+    let outcome = github::upload_results(
+        &repo,
+        &branch,
+        &remote_dir,
+        &token,
+        files,
+        &scan_label,
+        merge_existing,
+    )
+    .await;
     if let Ok(conn) = state.db.lock() {
         match &outcome {
             Ok(o) => {

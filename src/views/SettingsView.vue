@@ -103,6 +103,26 @@ async function openData() {
           <label>默认端口<input v-model.number="form.defaultPort" type="number" min="1" max="65535" /></label>
           <label>并发数量<input v-model.number="form.concurrency" type="number" min="1" max="512" /></label>
           <label>每地区保留数量<input v-model.number="form.perRegionTop" type="number" min="1" max="500" /></label>
+          <label title="每个地区只把 TCP 延迟最快的前 N 个候选送进下载测速；全部 = 不限制，速度会慢一些">每地区测速数量
+            <select v-model.number="form.downloadTopPerRegion">
+              <option :value="20">前 20 个</option>
+              <option :value="30">前 30 个</option>
+              <option :value="50">前 50 个</option>
+              <option :value="100">前 100 个</option>
+              <option :value="0">全部</option>
+            </select>
+          </label>
+          <label title="自动会根据窗口大小和系统 DPI 缩放；2K / 4K 屏幕建议保持自动，保存后立即生效">界面缩放
+            <select v-model="form.uiScale">
+              <option value="auto">自动（推荐）</option>
+              <option value="1">100%</option>
+              <option value="1.1">110%</option>
+              <option value="1.25">125%</option>
+              <option value="1.5">150%</option>
+              <option value="1.75">175%</option>
+              <option value="2">200%</option>
+            </select>
+          </label>
           <label>TCP 延迟上限（ms）<input v-model.number="form.latencyLimitMs" type="number" min="1" /></label>
           <label>下载速度下限（MB/s）<input v-model.number="form.speedLimitMbS" type="number" step="0.1" min="0" /></label>
           <label>下载测试时长（秒）<input v-model.number="form.downloadSeconds" type="number" min="2" max="120" /></label>

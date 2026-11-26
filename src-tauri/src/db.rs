@@ -204,6 +204,15 @@ pub fn load_settings(conn: &Connection) -> AppSettings {
         }
         let _ = set_meta(conn, "migrate.stability_disabled_v1", "1");
     }
+    // 迁移：旧版默认候选窗口为 1200，但实际受地区基础配额限制会变成 1020。
+    // 用户明确要求深度测试窗口固定为 1024，只迁移旧默认值，保留用户自定义值。
+    if get_meta(conn, "migrate.scan_window_1024_v1").is_none() {
+        if settings.max_candidates == 1200 {
+            settings.max_candidates = 1024;
+            let _ = save_settings(conn, &settings);
+        }
+        let _ = set_meta(conn, "migrate.scan_window_1024_v1", "1");
+    }
     settings
 }
 
@@ -440,9 +449,9 @@ fn select_candidates_for_scan(mut all: Vec<Candidate>, request: &ScanRequest) ->
     // 七地区优先，但绝不丢弃已知属于其他国家的候选：
     // 每轮固定留出一部分探索名额，保证德国、加拿大、澳洲等非首选地区同样能被识别和测速。
 
-    let reserve = if request.smart_supplement { 3.0 } else { 1.8 };
-    let cap = ((request.per_region_top.max(1) * selected.len().max(1)) as f64 * reserve) as usize + 600;
-    let limit = request.max_candidates.min(cap.max(500));
+    // 深度测试窗口由用户设置决定；默认 1024。不要再叠加动态配额上限，
+    // 否则默认参数会从 1024 被压缩成 1020，导致界面数字和设置不一致。
+    let limit = request.max_candidates.min(all.len());
     if all.is_empty() || limit == 0 {
         return Vec::new();
     }
@@ -1194,6 +1203,7 @@ mod tests {
         ScanRequest {
             regions: regions.iter().map(|value| value.to_string()).collect(),
             per_region_top,
+            download_top_per_region: 30,
             port: 443,
             concurrency: 64,
             latency_limit_ms: 1500.0,
@@ -1278,6 +1288,32 @@ mod tests {
         assert_eq!(selected.len(), 4);
         assert!(selected.iter().any(|item| item.initial_region == "jp"));
         assert!(selected.iter().any(|item| item.initial_region == "hk"));
+    }
+
+    #[test]
+    fn default_scan_window_is_exactly_1024_and_migrates_old_default() {
+        let defaults = AppSettings::default();
+        assert_eq!(defaults.max_candidates, 1024);
+
+        let pool: Vec<Candidate> = (1..=1500)
+            .map(|id| candidate(id, "hk", "", None, None))
+            .collect();
+        let selected = select_candidates_for_scan(
+            pool,
+            &request(&["all"], defaults.per_region_top, defaults.max_candidates),
+        );
+        assert_eq!(selected.len(), 1024);
+
+        let (conn, path) = temp_db();
+        let old_default = AppSettings {
+            max_candidates: 1200,
+            ..Default::default()
+        };
+        save_settings(&conn, &old_default).unwrap();
+        let migrated = load_settings(&conn);
+        assert_eq!(migrated.max_candidates, 1024);
+        drop(conn);
+        let _ = std::fs::remove_file(path);
     }
 
     #[test]
